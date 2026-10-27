@@ -1,0 +1,11 @@
+/build*/
+/.cache/
+/artifacts/
+/.vs/
+/out/
+*.user
+snake-survivors.save
+snake-settings.json
+snake-settings.json.tmp
+__pycache__/
+*.pyc

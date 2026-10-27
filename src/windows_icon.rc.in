@@ -1,0 +1,3 @@
+// GLFW loads this named resource when creating the window. Windows also uses
+// its size variants for the executable, taskbar, shortcuts, and Alt+Tab.
+GLFW_ICON ICON "@CMAKE_CURRENT_SOURCE_DIR@/data/icons/ultimate-snake.ico"

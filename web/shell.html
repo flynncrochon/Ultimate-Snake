@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake Survivors</title>
+  <style>
+    html, body { margin: 0; background: #000; color: #eee; font: 14px monospace; }
+    /* No CSS scaling: C++ presents the 800x500 image at an integer scale.
+       Small viewports scroll instead of squeezing source pixels. */
+    canvas { display: block; outline: none; image-rendering: pixelated; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; background: #000; z-index: 2; }
+    #loading[hidden] { display: none; }
+    #status { max-width: 36em; padding: 16px; }
+    #tools { position: fixed; bottom: 8px; left: 8px; display: flex; gap: 8px; align-items: center; }
+    button { background: #151515; color: #eee; border: 1px solid #666; padding: 6px 10px; font: inherit; cursor: pointer; }
+    button:focus-visible { outline: 2px solid #ffc85f; }
+    #storage { max-width: 26em; color: #ffc85f; font-size: 12px; }
+    body:fullscreen { overflow: auto; }
+  </style>
+</head>
+<body>
+  <div id="loading" role="status"><div id="status">Loading Snake Survivors…</div></div>
+  <canvas id="canvas" width="800" height="500" tabindex="0" aria-label="Snake Survivors game. WASD or arrows to steer, Enter to start, Escape to pause."></canvas>
+  <div id="tools">
+    <button id="fullscreen" type="button">Fullscreen</button>
+    <span id="storage" role="status"></span>
+  </div>
+  <script>
+    const canvas = document.getElementById('canvas');
+    const loading = document.getElementById('loading');
+    const status = document.getElementById('status');
+    const storage = document.getElementById('storage');
+    let storageReady = false, saving = false, savePending = false, saveTimer = 0, failed = false;
+    function flushSave() {
+      saveTimer = 0;
+      if (!storageReady || saving || !savePending) return;
+      savePending = false;
+      saving = true;
+      Module.FS.syncfs(false, function(error) {
+        saving = false;
+        if (error) storage.textContent = 'Browser saves unavailable; progress lasts for this visit.';
+        if (savePending) saveTimer = setTimeout(flushSave, 250);
+      });
+    }
+    function failure(message) {
+      if (failed) return;
+      failed = true;
+      loading.hidden = false;
+      status.textContent = message;
+    }
+    var Module = {
+      canvas: canvas,
+      fatalError: failure,
+      print: function(message) { console.log(message); },
+      printErr: function(message) { console.error(message); },
+      setStatus: function(message) { if (message) status.textContent = message; },
+      onAbort: function(reason) { failure('Unable to start the game: ' + reason); },
+      onExit: function(code) { if (code) failure('Unable to start the game. See the browser console for details.'); },
+      queueSave: function() {
+        savePending = true;
+        if (!saveTimer && !saving) saveTimer = setTimeout(flushSave, 250);
+      },
+      preRun: [function() {
+        Module.FS.mkdir('/persistent');
+        Module.addRunDependency('snake-saves');
+        try {
+          Module.FS.mount(Module.FS.filesystems.IDBFS, {}, '/persistent');
+          Module.FS.syncfs(true, function(error) {
+            storageReady = !error;
+            if (error) storage.textContent = 'Browser saves unavailable; progress lasts for this visit.';
+            Module.removeRunDependency('snake-saves');
+          });
+        } catch (error) {
+          storage.textContent = 'Browser saves unavailable; progress lasts for this visit.';
+          Module.removeRunDependency('snake-saves');
+        }
+      }],
+      postRun: [function() { if (!failed) { loading.hidden = true; canvas.focus(); } }]
+    };
+    canvas.addEventListener('contextmenu', function(event) { event.preventDefault(); });
+    canvas.addEventListener('pointerdown', function() { canvas.focus(); });
+    canvas.addEventListener('webglcontextlost', function(event) {
+      event.preventDefault();
+      failure('The graphics context was lost. Reload this page to restart.');
+    });
+    // Prevent browser scrolling/shortcuts only while the game owns keyboard focus.
+    window.addEventListener('keydown', function(event) {
+      if (document.activeElement === canvas &&
+          ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab', 'F2', 'F3', 'F10'].includes(event.code)) event.preventDefault();
+    }, {capture: true});
+    document.getElementById('fullscreen').addEventListener('click', async function() {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.body.requestFullscreen();
+      } catch (error) { storage.textContent = 'Fullscreen is unavailable in this browser or embed.'; }
+      canvas.focus();
+    });
+    document.addEventListener('fullscreenchange', function() {
+      document.getElementById('fullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+      window.dispatchEvent(new Event('resize'));
+    });
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden && savePending) { clearTimeout(saveTimer); flushSave(); }
+    });
+    window.addEventListener('error', function(event) {
+      if (!loading.hidden) failure('Unable to load the game. Check the connection and reload.');
+    });
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

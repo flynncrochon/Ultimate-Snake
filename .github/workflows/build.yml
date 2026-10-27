@@ -1,0 +1,51 @@
+name: Build and test
+on: [push, pull_request]
+
+jobs:
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: '4.0.23'
+          actions-cache-folder: emsdk-cache
+      - name: Configure web
+        run: emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+      - name: Build web
+        run: cmake --build build-web --parallel 3
+      - name: Package static site
+        run: cmake --install build-web --prefix build-web/site --component game
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snake-survivors-web
+          path: build-web/site/
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Linux graphics dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 3
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Seeded combat hunt
+        run: python -m game_tests.run --tier hunt --json build/combat-hunt-results.json
+      - name: Package
+        run: cmake --install build --config Release --prefix dist --component game
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snake-survivors-${{ runner.os }}
+          path: dist/

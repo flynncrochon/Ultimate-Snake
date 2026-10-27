@@ -1,0 +1,1346 @@
+{
+  "reference_commit": "b6cb72e66eebc1291d57efe63ebbe93ec602e863",
+  "source": "Original JavaScript classes/getters and constants executed in a browser; no native formulas used.",
+  "units": {
+    "time": "milliseconds for get_cooldown; seconds for duration",
+    "distance": "original cells; native simulation cell=8"
+  },
+  "weapons": {
+    "venom_shot": [
+      {
+        "rank": 1,
+        "getters": {}
+      },
+      {
+        "rank": 2,
+        "getters": {}
+      },
+      {
+        "rank": 3,
+        "getters": {}
+      },
+      {
+        "rank": 4,
+        "getters": {}
+      },
+      {
+        "rank": 5,
+        "getters": {}
+      },
+      {
+        "rank": 6,
+        "getters": {}
+      },
+      {
+        "rank": 7,
+        "getters": {}
+      },
+      {
+        "rank": 8,
+        "getters": {}
+      }
+    ],
+    "viper_fangs": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 2500,
+          "get_fang_count": 1,
+          "get_damage": 150
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 2250,
+          "get_fang_count": 2,
+          "get_damage": 150
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 2000,
+          "get_fang_count": 3,
+          "get_damage": 300
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 1750,
+          "get_fang_count": 4,
+          "get_damage": 300
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 1500,
+          "get_fang_count": 5,
+          "get_damage": 300
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 1250,
+          "get_fang_count": 6,
+          "get_damage": 450
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 1000,
+          "get_fang_count": 7,
+          "get_damage": 450
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 1000,
+          "get_fang_count": 8,
+          "get_damage": 450
+        }
+      }
+    ],
+    "plague_mortar": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 4000,
+          "get_pool_radius": 2.2,
+          "get_damage": 125
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 3600,
+          "get_pool_radius": 2.5500000000000003,
+          "get_damage": 125
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 3200,
+          "get_pool_radius": 2.9000000000000004,
+          "get_damage": 250
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 2800,
+          "get_pool_radius": 3.25,
+          "get_damage": 250
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 2400,
+          "get_pool_radius": 3.6,
+          "get_damage": 250
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 2000,
+          "get_pool_radius": 3.95,
+          "get_damage": 375
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 1600,
+          "get_pool_radius": 4.3,
+          "get_damage": 375
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 1500,
+          "get_pool_radius": 4.65,
+          "get_damage": 375
+        }
+      }
+    ],
+    "snake_nest": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 7000,
+          "get_spawn_count": 3,
+          "get_damage": 50,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 6400,
+          "get_spawn_count": 3,
+          "get_damage": 50,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 5800,
+          "get_spawn_count": 4,
+          "get_damage": 100,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 5200,
+          "get_spawn_count": 4,
+          "get_damage": 100,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 4600,
+          "get_spawn_count": 5,
+          "get_damage": 100,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 4000,
+          "get_spawn_count": 5,
+          "get_damage": 150,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 3400,
+          "get_spawn_count": 6,
+          "get_damage": 150,
+          "get_max_ticks": 70
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 2800,
+          "get_spawn_count": 6,
+          "get_damage": 150,
+          "get_max_ticks": 70
+        }
+      }
+    ],
+    "venom_nova": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 3500,
+          "get_radius": 2.5,
+          "get_damage": 100,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 3150,
+          "get_radius": 2.9,
+          "get_damage": 100,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 2800,
+          "get_radius": 3.3,
+          "get_damage": 200,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 2450,
+          "get_radius": 3.7,
+          "get_damage": 200,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 2100,
+          "get_radius": 4.1,
+          "get_damage": 200,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 1750,
+          "get_radius": 4.5,
+          "get_damage": 300,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 1400,
+          "get_radius": 4.9,
+          "get_damage": 300,
+          "get_pulse_count": 1
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 1200,
+          "get_radius": 5.300000000000001,
+          "get_damage": 300,
+          "get_pulse_count": 1
+        }
+      }
+    ],
+    "sidewinder_beam": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 5000,
+          "get_tick_damage": 15,
+          "get_range": 8,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 4600,
+          "get_tick_damage": 30,
+          "get_range": 8.5,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 4200,
+          "get_tick_damage": 45,
+          "get_range": 9,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 3800,
+          "get_tick_damage": 60,
+          "get_range": 9.5,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 3400,
+          "get_tick_damage": 75,
+          "get_range": 10,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 3000,
+          "get_tick_damage": 90,
+          "get_range": 10.5,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 2600,
+          "get_tick_damage": 105,
+          "get_range": 11,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 2200,
+          "get_tick_damage": 120,
+          "get_range": 11.5,
+          "get_beam_count": 1,
+          "get_duration": 2.5
+        }
+      }
+    ],
+    "ricochet_fang": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 3500,
+          "get_fang_count": 1,
+          "get_max_bounces": 3,
+          "get_damage": 200,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 3200,
+          "get_fang_count": 1,
+          "get_max_bounces": 4,
+          "get_damage": 200,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 2900,
+          "get_fang_count": 1,
+          "get_max_bounces": 4,
+          "get_damage": 400,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 2600,
+          "get_fang_count": 1,
+          "get_max_bounces": 5,
+          "get_damage": 400,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 2300,
+          "get_fang_count": 1,
+          "get_max_bounces": 5,
+          "get_damage": 400,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 2000,
+          "get_fang_count": 1,
+          "get_max_bounces": 6,
+          "get_damage": 600,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 1700,
+          "get_fang_count": 1,
+          "get_max_bounces": 6,
+          "get_damage": 600,
+          "get_bounce_radius": 5
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 1500,
+          "get_fang_count": 1,
+          "get_max_bounces": 7,
+          "get_damage": 600,
+          "get_bounce_radius": 5
+        }
+      }
+    ],
+    "cobra_pit": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 8000,
+          "get_spit_damage": 60,
+          "get_max_cobras": 6,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 1.2
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 7450,
+          "get_spit_damage": 120,
+          "get_max_cobras": 6,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 1.1199999999999999
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 6900,
+          "get_spit_damage": 120,
+          "get_max_cobras": 6,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 1.04
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 6350,
+          "get_spit_damage": 180,
+          "get_max_cobras": 7,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 0.96
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 5800,
+          "get_spit_damage": 180,
+          "get_max_cobras": 7,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 0.8799999999999999
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 5250,
+          "get_spit_damage": 240,
+          "get_max_cobras": 7,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 0.7999999999999999
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 4700,
+          "get_spit_damage": 240,
+          "get_max_cobras": 8,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 0.72
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 4150,
+          "get_spit_damage": 300,
+          "get_max_cobras": 8,
+          "get_pit_duration": 6,
+          "get_cobra_lifetime": 5,
+          "get_spit_cooldown": 0.6399999999999999
+        }
+      }
+    ],
+    "tongue_lash": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_cooldown": 2000,
+          "get_range": 3,
+          "get_damage": 150,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_cooldown": 1820,
+          "get_range": 3.35,
+          "get_damage": 300,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_cooldown": 1640,
+          "get_range": 3.7,
+          "get_damage": 300,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_cooldown": 1460,
+          "get_range": 4.05,
+          "get_damage": 450,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_cooldown": 1280,
+          "get_range": 4.4,
+          "get_damage": 450,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_cooldown": 1100,
+          "get_range": 4.75,
+          "get_damage": 600,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_cooldown": 920,
+          "get_range": 5.1,
+          "get_damage": 600,
+          "get_lash_count": 1
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_cooldown": 740,
+          "get_range": 5.449999999999999,
+          "get_damage": 750,
+          "get_lash_count": 1
+        }
+      }
+    ],
+    "miasma": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_breathing_radius": 8
+        }
+      }
+    ],
+    "hydra_brood": [
+      {
+        "rank": 1,
+        "getters": {}
+      },
+      {
+        "rank": 2,
+        "getters": {}
+      },
+      {
+        "rank": 3,
+        "getters": {}
+      },
+      {
+        "rank": 4,
+        "getters": {}
+      },
+      {
+        "rank": 5,
+        "getters": {}
+      },
+      {
+        "rank": 6,
+        "getters": {}
+      },
+      {
+        "rank": 7,
+        "getters": {}
+      },
+      {
+        "rank": 8,
+        "getters": {}
+      }
+    ],
+    "serpent_gatling": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_fang_count": 2
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_fang_count": 2
+        }
+      }
+    ],
+    "consumption_beam": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_beam_count": 1
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_beam_count": 1
+        }
+      }
+    ],
+    "singularity_mortar": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_pull_radius": 4
+        }
+      }
+    ],
+    "shatter_fang": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_fang_count": 1,
+          "get_bounce_radius": 6
+        }
+      }
+    ],
+    "ancient_brood_pit": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_laser_damage": 180,
+          "get_laser_half_width": 0.5,
+          "get_laser_range": 12,
+          "get_beam_count": 1,
+          "get_scale": 1.5
+        }
+      }
+    ],
+    "serpents_reckoning": [
+      {
+        "rank": 1,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 2,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 3,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 4,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 5,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 6,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 7,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      },
+      {
+        "rank": 8,
+        "getters": {
+          "get_tongue_count": 1
+        }
+      }
+    ],
+    "ouroboros": [
+      {
+        "rank": 1,
+        "getters": {}
+      },
+      {
+        "rank": 2,
+        "getters": {}
+      },
+      {
+        "rank": 3,
+        "getters": {}
+      },
+      {
+        "rank": 4,
+        "getters": {}
+      },
+      {
+        "rank": 5,
+        "getters": {}
+      },
+      {
+        "rank": 6,
+        "getters": {}
+      },
+      {
+        "rank": 7,
+        "getters": {}
+      },
+      {
+        "rank": 8,
+        "getters": {}
+      }
+    ]
+  },
+  "constants": {
+    "venom_shot": {
+      "MAX_BULLETS": 40,
+      "BASE_COOLDOWN": 400,
+      "FANG_SPREAD": 0.3,
+      "FANG_ANGLE": 0.7853981633974483,
+      "COS_FANG": 0.7071067811865476,
+      "SIN_FANG": 0.7071067811865475,
+      "FIRE_RANGE": 14,
+      "FIRE_RANGE_SQ": 196
+    },
+    "viper_fangs": {
+      "FANG_RANGE": 9,
+      "FANG_RANGE_SQ": 81,
+      "BASE_COOLDOWN": 2500,
+      "FANG_SPEED": 18,
+      "FANG_LIFETIME": 0.6,
+      "FANG_TURN_SPEED": 10,
+      "FANG_RADIUS": 0.18
+    },
+    "plague_mortar": {
+      "MORTAR_RANGE": 16,
+      "MORTAR_RANGE_SQ": 256,
+      "BASE_COOLDOWN": 4000,
+      "FLIGHT_DURATION": 0.9,
+      "MAX_ARC_HEIGHT": 7,
+      "POOL_DURATION": 4,
+      "POOL_DAMAGE_INTERVAL": 0.35,
+      "BASE_POOL_RADIUS": 2.2,
+      "POOL_RADIUS_PER_LEVEL": 0.35,
+      "MAX_TRAIL_POINTS": 40,
+      "MAX_POOLS": 30
+    },
+    "snake_nest": {
+      "NEST_RANGE": 12,
+      "BASE_NEST_COOLDOWN": 7000,
+      "NEST_FLIGHT_DURATION": 0.75,
+      "NEST_ARC_HEIGHT": 6,
+      "MAX_NEST_TRAIL": 30,
+      "MINI_SNAKE_LENGTH": 3,
+      "MINI_SNAKE_TICK_RATE": 80,
+      "MINI_SNAKE_MAX_TICKS": 70,
+      "HATCH_DURATION": 0.5,
+      "MAX_MINI_SNAKES": 30,
+      "MAX_NESTS": 25
+    },
+    "venom_nova": {
+      "BASE_COOLDOWN": 3500,
+      "BASE_RADIUS": 2.5,
+      "RADIUS_PER_LEVEL": 0.4,
+      "PULSE_VISUAL_DURATION": 0.45,
+      "MAX_PULSES": 75
+    },
+    "sidewinder_beam": {
+      "BEAM_RANGE": 8,
+      "TICK_INTERVAL": 0.2,
+      "BASE_TICK_DMG": 15,
+      "BEAM_DURATION": 2.5,
+      "BASE_COOLDOWN": 5000
+    },
+    "ricochet_fang": {
+      "RICOCHET_RANGE": 10,
+      "RICOCHET_RANGE_SQ": 100,
+      "BASE_COOLDOWN": 3500,
+      "RICOCHET_SPEED": 20,
+      "RICOCHET_LIFETIME": 0.8,
+      "RICOCHET_TURN_SPEED": 14,
+      "RICOCHET_RADIUS": 0.2,
+      "BASE_DAMAGE": 200,
+      "BASE_BOUNCE_RADIUS": 5,
+      "BASE_BOUNCES": 3
+    },
+    "cobra_pit": {
+      "PIT_RANGE": 12,
+      "PIT_RANGE_SQ": 144,
+      "BASE_PIT_COOLDOWN": 8000,
+      "PIT_FLIGHT_DURATION": 0.75,
+      "PIT_ARC_HEIGHT": 6,
+      "MAX_PIT_TRAIL": 20,
+      "PIT_DURATION": 6,
+      "COBRA_SPAWN_INTERVAL": 0.55,
+      "MAX_COBRAS_PER_PIT": 6,
+      "MAX_TOTAL_COBRAS": 30,
+      "COBRA_LIFETIME": 5,
+      "COBRA_SPIT_COOLDOWN": 1.2,
+      "COBRA_SPIT_RANGE_SQ": 36,
+      "COBRA_SPIT_SPEED": 12,
+      "COBRA_SPIT_LIFETIME": 1,
+      "COBRA_RISE_DURATION": 0.4,
+      "MAX_DRIPS": 3,
+      "MAX_SPIT_TRAIL": 6,
+      "SEG_COUNT": 6
+    },
+    "tongue_lash": {
+      "BASE_RANGE": 3,
+      "BASE_COOLDOWN": 2000,
+      "CONE_HALF_ANGLE": 1.0471975511965976,
+      "LASH_VISUAL_DURATION": 0.35,
+      "SLOW_DURATION": 1.5,
+      "SLOW_FACTOR": 0.4,
+      "SWEEP_HALF": 0.7853981633974483
+    },
+    "miasma": {
+      "TICK_INTERVAL": 0.5,
+      "BASE_RADIUS": 8,
+      "BREATH_SPEED": 1.5,
+      "BREATH_AMPLITUDE": 0.1,
+      "EVO_DMG_SCALE": 1.0666666666666667,
+      "DAMAGE": 320
+    },
+    "hydra_brood": {
+      "NEST_RANGE": 12,
+      "NEST_RANGE_SQ": 144,
+      "HYDRA_COOLDOWN": 5500,
+      "FLIGHT_DURATION": 0.75,
+      "ARC_HEIGHT": 6,
+      "MAX_TRAIL": 30,
+      "HATCH_DURATION": 0.5,
+      "HYDRA_LENGTH": 5,
+      "HYDRA_TICK_RATE": 80,
+      "HYDRA_MAX_TICKS": 70,
+      "HYDRA_SPAWN_COUNT": 6,
+      "EVO_HYDRA_SCALE": 1.3333333333333333,
+      "HYDRA_DAMAGE": 200,
+      "BROOD_LENGTH": 3,
+      "BROOD_TICK_RATE": 70,
+      "BROOD_MAX_TICKS": 50,
+      "EVO_BROOD_SCALE": 1,
+      "BROOD_DAMAGE": 150,
+      "HEAD_FORK_ANGLE": 0.4,
+      "HEAD_FORK_DIST": 0.35,
+      "MAX_HYDRA_SNAKES": 30,
+      "MAX_BROOD_SNAKES": 30
+    },
+    "serpent_gatling": {
+      "GATLING_RANGE": 11,
+      "GATLING_RANGE_SQ": 121,
+      "GATLING_COOLDOWN": 180,
+      "GATLING_SPEED": 24,
+      "GATLING_LIFETIME": 0.5,
+      "GATLING_TURN_SPEED": 12,
+      "GATLING_RADIUS": 0.14,
+      "EVO_DMG_SCALE": 0.3333333333333333,
+      "GATLING_DAMAGE": 150,
+      "GATLING_MAX_PIERCE": 3
+    },
+    "consumption_beam": {
+      "BEAM_RANGE": 10,
+      "TICK_INTERVAL": 0.1,
+      "EVO_TICK_SCALE": 0.8333333333333334,
+      "TICK_DMG": 100,
+      "GROWTH_PER_KILL": 3,
+      "VACUUM_RADIUS": 5
+    },
+    "singularity_mortar": {
+      "MORTAR_RANGE": 18,
+      "MORTAR_RANGE_SQ": 324,
+      "COOLDOWN": 5500,
+      "FLIGHT_DURATION": 1,
+      "MAX_ARC_HEIGHT": 9,
+      "PULL_DURATION": 2,
+      "PULL_RADIUS": 4,
+      "PULL_STRENGTH": 6,
+      "DETONATION_DAMAGE": 2500,
+      "EVO_TICK_SCALE": 1.0666666666666667,
+      "PULL_TICK_DAMAGE": 400,
+      "PULL_TICK_INTERVAL": 0.4,
+      "GRID_PULL_INTERVAL": 0.16,
+      "MAX_TRAIL_POINTS": 40,
+      "MAX_WELLS": 15
+    },
+    "shatter_fang": {
+      "SHATTER_RANGE": 12,
+      "SHATTER_RANGE_SQ": 144,
+      "SHATTER_COOLDOWN": 3000,
+      "SHATTER_SPEED": 22,
+      "SHATTER_LIFETIME": 0.9,
+      "SHATTER_TURN_SPEED": 14,
+      "SHATTER_RADIUS": 0.2,
+      "EVO_DMG_SCALE": 1,
+      "SHATTER_DAMAGE": 600,
+      "SHATTER_BOUNCE_RADIUS": 6,
+      "SHATTER_MAX_BOUNCES": 6,
+      "SPLINTER_DAMAGE_MULT": 0.5,
+      "SPLINTER_SPEED": 26,
+      "SPLINTER_LIFETIME": 0.6,
+      "SPLINTER_RADIUS": 0.14,
+      "SPLINTER_COUNT": 3,
+      "MAX_GENERATION": 3,
+      "MAX_ACTIVE_FANGS": 60
+    },
+    "ancient_brood_pit": {
+      "PIT_RANGE": 14,
+      "ANCIENT_COOLDOWN": 6000,
+      "FLIGHT_DURATION": 0.85,
+      "ARC_HEIGHT": 7,
+      "MAX_TRAIL": 20,
+      "LEVIATHAN_RISE_DURATION": 1.5,
+      "LEVIATHAN_BASE_SCALE": 1.5,
+      "LEVIATHAN_GROWTH_PER_PIT": 0.2,
+      "LEVIATHAN_MAX_GROWTH": 10,
+      "SEG_COUNT": 10,
+      "ABSORB_FLASH_DURATION": 0.6,
+      "LEVIATHAN_LEASH_RANGE": 22,
+      "LASER_RANGE": 12,
+      "LASER_RANGE_PER_GROWTH": 1,
+      "LASER_TICK_INTERVAL": 0.2,
+      "LASER_BASE_DAMAGE": 180,
+      "LASER_DAMAGE_PER_GROWTH": 45,
+      "LASER_BASE_HALF_WIDTH": 0.5,
+      "LASER_WIDTH_PER_GROWTH": 0.08,
+      "LASER_SWEEP_SPEED": 18
+    },
+    "serpents_reckoning": {
+      "GRAPPLE_RANGE": 14,
+      "COOLDOWN": 2200,
+      "GRAPPLE_DMG": 400,
+      "DRAG_DMG": 250,
+      "DRAG_WIDTH": 1.5,
+      "TONGUE_SPEED": 40,
+      "DRAG_PATH_SLOW": 1,
+      "PULL_TICK_INTERVAL": 0.1,
+      "BITE_AOE_RADIUS": 3,
+      "BITE_AOE_DMG": 500,
+      "BITE_ANIM_DURATION": 0.55
+    },
+    "ouroboros": {
+      "NUM_FANGS": 44,
+      "MIN_ORBIT": 4.5,
+      "MAX_ORBIT": 9.5,
+      "BASE_DAMAGE": 180,
+      "HIT_COOLDOWN": 0.3,
+      "HIT_RADIUS": 1.1,
+      "TRAIL_LENGTH": 4
+    }
+  }
+}

@@ -1,0 +1,10 @@
+weapon,passive,name,description,damage,cooldown,area,range
+venom_shot,serpents_scales,Ouroboros,A persistent swarm of forty-four orbiting fangs protects your head and surrounding space.,4,1,1,1
+viper_fangs,rapid_fire,Serpent's Gatling,Rapid powerful homing fangs pierce three enemies with damage falloff.,4,1,1,1
+plague_mortar,graviton,Singularity Mortar,Fast gravity wells concentrate extra volleys damage on landing then detonate.,1.5,0.25,1.5,1
+snake_nest,coiled_volley,Hydra Brood,Empowered five-segment hydras carry volley damage and split into smaller brood.,2,0.5,1,1
+venom_nova,toxic_expanse,Miasma,A permanent toxic aura carries your attack-speed volley and aftershock bonuses.,1,1,1,1
+sidewinder_beam,ravenous_maw,Consumption Beam,Always-on long-range beams preserve duration and attack-speed bonuses and consume defeated targets.,1.75,1,1,1.2
+ricochet_fang,dead_eye,Shatter Fang,Faster critical ricochets split into three generations of chaining splinters.,1.25,0.4,1,1
+cobra_pit,chronofield,Ancient Brood Pit,A powerful laser leviathan absorbs later pits and carries your attack-speed bonus.,3,0.5,1,1
+tongue_lash,serpents_reach,Serpent's Reckoning,Fast grapples drag prey through enemies then devour it in a wide bite blast.,3,0.5,2,1

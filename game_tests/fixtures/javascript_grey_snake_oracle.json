@@ -1,0 +1,429 @@
+{
+  "reference_commit": "b6cb72e66eebc1291d57efe63ebbe93ec602e863",
+  "source": "Unmodified original grey_snake.js executed with clock=0 and Math.random=0.25.",
+  "units": "JavaScript grid cells; multiply by 8 for native world coordinates.",
+  "constants": {
+    "GREY_TICK_RATE": 60,
+    "GREY_LIFETIME": 10000,
+    "GREY_FIRST_SPAWN": 90000,
+    "GREY_SPAWN_INTERVAL": 90000,
+    "WALL_LENGTH": 12
+  },
+  "cases": [
+    {
+      "name": "approach",
+      "head": [
+        130,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          129,
+          100
+        ],
+        "direction": [
+          -1,
+          0
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "begin_wall",
+      "head": [
+        121,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          121,
+          101
+        ],
+        "direction": [
+          0,
+          1
+        ],
+        "wall": true,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "sweep",
+      "head": [
+        130,
+        100
+      ],
+      "wall": true,
+      "wall_ticks": 5,
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "expected": {
+        "head": [
+          130,
+          101
+        ],
+        "direction": [
+          0,
+          1
+        ],
+        "wall": true,
+        "wall_ticks": 6
+      }
+    },
+    {
+      "name": "replan_after_twelve",
+      "head": [
+        140,
+        100
+      ],
+      "wall": true,
+      "wall_ticks": 11,
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "expected": {
+        "head": [
+          139,
+          100
+        ],
+        "direction": [
+          -1,
+          0
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "flee_and_abort_wall",
+      "head": [
+        104,
+        100
+      ],
+      "wall": true,
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          105,
+          100
+        ],
+        "direction": [
+          1,
+          0
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "reverse_at_boundary",
+      "head": [
+        130,
+        198
+      ],
+      "wall": true,
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          130,
+          197
+        ],
+        "direction": [
+          0,
+          -1
+        ],
+        "wall": true,
+        "wall_ticks": 1
+      }
+    },
+    {
+      "name": "perpendicular_at_boundary",
+      "head": [
+        198,
+        100
+      ],
+      "player_head": [
+        195,
+        100
+      ],
+      "target": [
+        190,
+        105
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          198,
+          101
+        ],
+        "direction": [
+          0,
+          1
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "avoid_tail",
+      "head": [
+        130,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "player_tail": [
+        128,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          130,
+          99
+        ],
+        "direction": [
+          0,
+          -1
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "avoid_other_wall",
+      "head": [
+        130,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "other_barrier": [
+        128,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          130,
+          99
+        ],
+        "direction": [
+          0,
+          -1
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "cross_own_trail",
+      "head": [
+        130,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "own_barrier": [
+        129,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "player_tail": [
+        99,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          129,
+          100
+        ],
+        "direction": [
+          -1,
+          0
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    },
+    {
+      "name": "blocked_at_both_sides",
+      "head": [
+        130,
+        100
+      ],
+      "target": [
+        120,
+        100
+      ],
+      "player_tail": [
+        129,
+        100
+      ],
+      "player_head": [
+        100,
+        100
+      ],
+      "wall_direction": [
+        0,
+        1
+      ],
+      "wall": false,
+      "wall_ticks": 0,
+      "expected": {
+        "head": [
+          130,
+          100
+        ],
+        "direction": [
+          0,
+          1
+        ],
+        "wall": false,
+        "wall_ticks": 0
+      }
+    }
+  ]
+}

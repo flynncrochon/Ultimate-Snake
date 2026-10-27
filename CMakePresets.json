@@ -1,0 +1,28 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "release",
+      "displayName": "Desktop release (Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release", "BUILD_TESTING": "ON" }
+    },
+    {
+      "name": "core-tests",
+      "displayName": "Core tests without graphics dependencies",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-tests",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "SNAKE_BUILD_GAME": "OFF", "BUILD_TESTING": "ON" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "core-tests", "configurePreset": "core-tests" }
+  ],
+  "testPresets": [
+    { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true } },
+    { "name": "core-tests", "configurePreset": "core-tests", "output": { "outputOnFailure": true } }
+  ]
+}

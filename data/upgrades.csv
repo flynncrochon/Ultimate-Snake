@@ -1,0 +1,19 @@
+id,type,name,description,max_rank,weight,pattern,damage,cooldown,speed,range,area,duration,amount,pierce,modifiers
+venom_shot,weapon,Venom Shot,Forward spread: two angled fangs and a center shot.,8,1,shot,150,0.4,320,112,1.2,0.55,3,0,
+viper_fangs,weapon,Viper Fangs,Homing fangs seek nearby enemies.,8,1,homing,150,2.5,144,72,1.44,0.6,1,0,
+plague_mortar,weapon,Plague Mortar,Toxic bombs leave 4-second poison pools.,8,1,mortar,125,4,0,128,17.6,4,1,0,
+snake_nest,weapon,Snake Nest,Eggs hatch 3 hunting serpents.,8,1,nest,50,7,0,96,3,5.6,1,0,
+venom_nova,weapon,Venom Nova,Poison pulse. Duration bonuses add delayed aftershocks.,8,1,nova,100,3.5,0,20,20,0.45,1,0,
+sidewinder_beam,weapon,Sidewinder Beam,Tracking beams deal repeated damage.,8,1,beam,15,5,0,64,1,2.5,1,0,
+ricochet_fang,weapon,Ricochet Fang,Homing fangs gain damage with each chained hit.,8,1,ricochet,200,3.5,160,80,1.6,0.8,1,0,
+cobra_pit,weapon,Cobra Pit,Pits raise persistent venom-spitting cobras.,8,1,pit,60,8,96,96,9.6,6,1,0,
+tongue_lash,weapon,Tongue Lash,Forward cone strike slows nearby enemies.,8,1,lash,150,2,0,24,8.37758,0.35,1,0,
+graviton,passive,Graviton,Pickup radius +1 tile per rank.,8,1,shot,0,1,0,1,1,1,1,0,pickup:8
+rapid_fire,passive,Rapid Fire,Weapon cooldowns -15% per rank.,8,1,shot,0,1,0,1,1,1,1,0,cooldown:-0.15
+dead_eye,passive,Dead Eye,Critical chance +12.5% per rank.,8,1,shot,0,1,0,1,1,1,1,0,crit:0.125
+ravenous_maw,passive,Ravenous Maw,XP +25% per rank. Direct damage bonus grows 10-50%.,8,1,shot,0,1,0,1,1,1,1,0,damage:0.10;growth:0.25
+chronofield,passive,Chronofield,Effect duration +25% per rank.,8,1,shot,0,1,0,1,1,1,1,0,duration:0.25
+coiled_volley,passive,Coiled Volley,Projectiles +1 per rank.,2,0.7,shot,0,1,0,1,1,1,1,0,amount:1
+toxic_expanse,passive,Toxic Expanse,Weapon area +15% per rank.,8,1,shot,0,1,0,1,1,1,1,0,area:0.15
+serpents_reach,passive,Serpent's Reach,Weapon and targeting range +12% per rank.,8,1,shot,0,1,0,1,1,1,1,0,range:0.12
+serpents_scales,passive,Serpent's Scales,Regenerating shields block full hits. Ranks add charges and shorten recharge.,8,1,shot,0,1,0,1,1,1,1,0,armor:0
