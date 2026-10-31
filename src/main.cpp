@@ -123,9 +123,11 @@ struct Application {
         std::string displayError;
         if(!display.initialize(initialSettings.display,&displayError))throw std::runtime_error(displayError);
         initialSettings.display=display.current();
+#ifndef __EMSCRIPTEN__
         canvas=LoadRenderTexture(snake::CanvasWidth,snake::CanvasHeight);
         if(!canvas.id)throw std::runtime_error("Unable to create the source framebuffer.");
         SetTextureFilter(canvas.texture,TEXTURE_FILTER_POINT);
+#endif
         presentation=std::make_unique<snake::Presentation>(catalog,initialSettings);
         auto& app=*presentation;
         app.displayOptions=&display;lastSaved=initialSettings;
@@ -177,8 +179,16 @@ struct Application {
         if(reverted){app.settingsDraft=app.settings;std::string error;if(!persistSettings(error))app.setSettingsFeedback(error);}
         const bool backgroundPaused=app.settings.display.pauseUnfocused&&(!focused||minimized);
         const int scale = snake::canvasScale(app.settings.display,GetScreenWidth(),GetScreenHeight());
+#ifdef __EMSCRIPTEN__
+        // Reveal the extra arena instead of stretching an 800x500 texture.
+        // Render directly at integer zoom: browser resizes need no new FBO,
+        // shader, buffer, or CPU storage. A partial edge pixel is simply clipped.
+        app.setViewport((GetScreenWidth()+scale-1)/scale,(GetScreenHeight()+scale-1)/scale,scale);
+        const int offsetX=0,offsetY=0;
+#else
         const int offsetX = (GetScreenWidth() - snake::CanvasWidth * scale) / 2;
         const int offsetY = (GetScreenHeight() - snake::CanvasHeight * scale) / 2;
+#endif
         const Vector2 cursor = GetMousePosition();
         const snake::Vec mouse{(cursor.x - float(offsetX)) / float(scale), (cursor.y - float(offsetY)) / float(scale)};
         // UI uses real frame time. Simulation uses a fixed 60 Hz accumulator.
@@ -222,6 +232,11 @@ struct Application {
         app.setRenderFrame(float(accumulator/snake::FixedStep),hasMotionHistory);
         app.updateAudio(dt);
         if(minimized){BeginDrawing();EndDrawing();++frame;return;}
+#ifdef __EMSCRIPTEN__
+        BeginDrawing();ClearBackground(BLACK);
+        BeginMode2D({{0,0},{0,0},0,float(scale)});app.draw();EndMode2D();
+        EndDrawing();
+#else
         BeginTextureMode(canvas);
         ClearBackground(BLACK);
         app.draw();
@@ -233,6 +248,7 @@ struct Application {
         DrawTexturePro(canvas.texture, {0,0,float(snake::CanvasWidth),-float(snake::CanvasHeight)},
             {float(outputX),float(outputY),float(snake::CanvasWidth * outputScale),float(snake::CanvasHeight * outputScale)}, {0,0},0,WHITE);
         EndDrawing();
+#endif
         ++frame;
     }
 #ifndef __EMSCRIPTEN__
@@ -272,8 +288,11 @@ struct Application {
         if (!options.capture.empty()) {
             const auto parent = std::filesystem::path(options.capture).parent_path();
             if (!parent.empty()) std::filesystem::create_directories(parent);
-            Image shot = LoadImageFromTexture(canvas.texture);
-            ImageFlipVertical(&shot);
+#ifdef __EMSCRIPTEN__
+            Image shot=LoadImageFromScreen();
+#else
+            Image shot = LoadImageFromTexture(canvas.texture);ImageFlipVertical(&shot);
+#endif
             if (!ExportImage(shot, options.capture.c_str())) throw std::runtime_error("Could not export screenshot: " + options.capture);
             UnloadImage(shot);
         }

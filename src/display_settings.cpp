@@ -40,7 +40,7 @@ struct DisplayManager::Impl {
         if(value.mode==WindowMode::Windowed){
             int count=0;auto** all=glfwGetMonitors(&count);int x=0,y=0,width=monitorInfo[std::size_t(value.monitor)].width,height=monitorInfo[std::size_t(value.monitor)].height;
             if(value.monitor<count)glfwGetMonitorWorkarea(all[value.monitor],&x,&y,&width,&height);
-            value.width=std::min(value.width,std::max(800,width));value.height=std::min(value.height,std::max(500,height));
+            value=fitWindowedDisplay(value,width,height);
         }
         if(value.refreshRate>0){
             const auto& monitor=monitorInfo[std::size_t(value.monitor)];bool supported=false;
@@ -67,8 +67,7 @@ struct DisplayManager::Impl {
                 SetWindowMonitor(after.monitor);
                 int left=0,top=0,right=0,bottom=0;
                 glfwGetWindowFrameSize(glfwGetCurrentContext(),&left,&top,&right,&bottom);
-                after.width=std::min(after.width,std::max(800,w-left-right));
-                after.height=std::min(after.height,std::max(500,h-top-bottom));
+                after=fitWindowedDisplay(after,w-left-right,h-top-bottom);
                 SetWindowSize(after.width,after.height);
                 const int minX=x+left,minY=y+top;
                 const int maxX=std::max(minX,x+w-after.width-right),maxY=std::max(minY,y+h-after.height-bottom);

@@ -52,8 +52,12 @@ activated and CMake/Ninja installed, run:
 Host the contents of `build-web/site` on a static web server. To try it locally,
 run `python -m http.server 8080 --directory build-web/site` and visit
 `http://localhost:8080`. The browser build retains the 60 Hz simulation and
-800×500 integer-scaled pixel rendering, with browser-local saves.
+native square pixels at integer zoom, with browser-local saves. Larger browser
+windows reveal more arena and keep the HUD at the viewport edges.
 See [`docs/WEB.md`](docs/WEB.md) for portable commands, hosting, and browser limits.
+The GitHub Actions workflow publishes default-branch web builds to GitHub Pages.
+Select **GitHub Actions** as the repository's **Settings → Pages** source once;
+the deployment URL appears in the workflow run.
 
 ## Settings
 

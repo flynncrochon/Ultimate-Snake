@@ -15,10 +15,14 @@ constexpr Color Venom{0, 204, 51, 255};
 constexpr Color BossPurple{187, 68, 255, 255};
 
 render::WorldRaster* activeRaster=nullptr;
+int rasterWidth=CanvasWidth,rasterHeight=CanvasHeight;
 struct RasterFrame {
     render::WorldRaster* previous;
-    explicit RasterFrame(render::WorldRaster& raster):previous(activeRaster){if(previous)previous->flush();activeRaster=&raster;}
-    ~RasterFrame(){activeRaster->flush();activeRaster=previous;}
+    int previousWidth=rasterWidth,previousHeight=rasterHeight;
+    RasterFrame(render::WorldRaster& raster,int width,int height):previous(activeRaster){
+        if(previous)previous->flush();activeRaster=&raster;rasterWidth=width;rasterHeight=height;
+    }
+    ~RasterFrame(){activeRaster->flush();activeRaster=previous;rasterWidth=previousWidth;rasterHeight=previousHeight;}
 };
 void rasterFlush(){if(activeRaster)activeRaster->flush();}
 void rasterRectangle(int x,int y,int width,int height,Color color){
@@ -67,17 +71,17 @@ void worldLine(int x1,int y1,int x2,int y2,Color color) {
     // Most effect segments are short and completely visible. Convex viewport
     // bounds make clipping unnecessary in that case; avoid four double divides
     // for every strand/pixel run in dense full-quality effects.
-    if(x1>=-2 && x1<=CanvasWidth+1 && y1>=-2 && y1<=CanvasHeight+1 &&
-       x2>=-2 && x2<=CanvasWidth+1 && y2>=-2 && y2<=CanvasHeight+1){
+    if(x1>=-2 && x1<=rasterWidth+1 && y1>=-2 && y1<=rasterHeight+1 &&
+       x2>=-2 && x2<=rasterWidth+1 && y2>=-2 && y2<=rasterHeight+1){
         rasterLine(x1,y1,x2,y2,color);return;
     }
-    if((x1<-2 && x2<-2) || (x1>CanvasWidth+1 && x2>CanvasWidth+1) ||
-       (y1<-2 && y2<-2) || (y1>CanvasHeight+1 && y2>CanvasHeight+1))return;
+    if((x1<-2 && x2<-2) || (x1>rasterWidth+1 && x2>rasterWidth+1) ||
+       (y1<-2 && y2<-2) || (y1>rasterHeight+1 && y2>rasterHeight+1))return;
     // Clip effects before Bresenham rasterization. Long targeting ranges must
     // not spend CPU plotting thousands of pixels outside the framebuffer.
     double first=0,last=1;const double dx=double(x2)-x1,dy=double(y2)-y1;
     auto clip=[&](double p,double q){if(p==0)return q>=0;const double t=q/p;if(p<0){if(t>last)return false;first=std::max(first,t);}else{if(t<first)return false;last=std::min(last,t);}return true;};
-    if(!clip(-dx,double(x1)+2) || !clip(dx,CanvasWidth+1.0-x1) || !clip(-dy,double(y1)+2) || !clip(dy,CanvasHeight+1.0-y1))return;
+    if(!clip(-dx,double(x1)+2) || !clip(dx,rasterWidth+1.0-x1) || !clip(-dy,double(y1)+2) || !clip(dy,rasterHeight+1.0-y1))return;
     const int ax=int(std::lround(x1+dx*first)),ay=int(std::lround(y1+dy*first));
     rasterLine(ax,ay,int(std::lround(x1+dx*last)),int(std::lround(y1+dy*last)),color);
 }
@@ -152,30 +156,30 @@ struct CircleCache {
 const CircleCache& circleCache(){static const CircleCache cache;return cache;}
 void disc(int x,int y,int radius,Color color);
 void worldRing(int x,int y,int radius,Color color) {
-    if(radius<0 || x+radius<0 || y+radius<0 || x-radius>=CanvasWidth || y-radius>=CanvasHeight)return;
+    if(radius<0 || x+radius<0 || y+radius<0 || x-radius>=rasterWidth || y-radius>=rasterHeight)return;
     if(radius>CachedCircleLimit){
         // Bound extreme upgrade radii to the visible framebuffer as well.
         const double rr=double(radius)*radius;
-        for(int row=0;row<CanvasHeight;++row){const double d=double(row)-y;if(d*d>rr)continue;const int half=int(std::sqrt(rr-d*d));rasterPixel(x-half,row,color);rasterPixel(x+half,row,color);}
-        for(int col=0;col<CanvasWidth;++col){const double d=double(col)-x;if(d*d>rr)continue;const int half=int(std::sqrt(rr-d*d));if(half>radius*7/10){rasterPixel(col,y-half,color);rasterPixel(col,y+half,color);}}
+        for(int row=0;row<rasterHeight;++row){const double d=double(row)-y;if(d*d>rr)continue;const int half=int(std::sqrt(rr-d*d));rasterPixel(x-half,row,color);rasterPixel(x+half,row,color);}
+        for(int col=0;col<rasterWidth;++col){const double d=double(col)-x;if(d*d>rr)continue;const int half=int(std::sqrt(rr-d*d));if(half>radius*7/10){rasterPixel(col,y-half,color);rasterPixel(col,y+half,color);}}
         return;
     }
     const auto* profile=circleCache().profile(radius);
-    for(int row=std::max(-radius,-y);row<=std::min(radius,CanvasHeight-y-1);++row){
+    for(int row=std::max(-radius,-y);row<=std::min(radius,rasterHeight-y-1);++row){
         const auto span=profile[std::abs(row)];
         if(span.first==0)rasterRectangle(x-span.last,y+row,span.last*2+1,1,color);
         else {const int width=span.last-span.first+1;rasterRectangle(x-span.last,y+row,width,1,color);rasterRectangle(x+span.first,y+row,width,1,color);}
     }
 }
 void disc(int x, int y, int radius, Color color) {
-    if(radius<0 || x+radius<0 || y+radius<0 || x-radius>=CanvasWidth || y-radius>=CanvasHeight)return;
-    const double farX=std::max(std::abs(double(x)),std::abs(double(x-CanvasWidth+1))),farY=std::max(std::abs(double(y)),std::abs(double(y-CanvasHeight+1)));
-    if(double(radius)*radius>=farX*farX+farY*farY){rasterRectangle(0,0,CanvasWidth,CanvasHeight,color);return;}
+    if(radius<0 || x+radius<0 || y+radius<0 || x-radius>=rasterWidth || y-radius>=rasterHeight)return;
+    const double farX=std::max(std::abs(double(x)),std::abs(double(x-rasterWidth+1))),farY=std::max(std::abs(double(y)),std::abs(double(y-rasterHeight+1)));
+    if(double(radius)*radius>=farX*farX+farY*farY){rasterRectangle(0,0,rasterWidth,rasterHeight,color);return;}
     if(radius>CachedCircleLimit){
-        for(int row=std::max(-radius,-y);row<=std::min(radius,CanvasHeight-y-1);++row){const int half=int(std::sqrt(double(radius)*radius-double(row)*row));rasterRectangle(x-half,y+row,half*2+1,1,color);}return;
+        for(int row=std::max(-radius,-y);row<=std::min(radius,rasterHeight-y-1);++row){const int half=int(std::sqrt(double(radius)*radius-double(row)*row));rasterRectangle(x-half,y+row,half*2+1,1,color);}return;
     }
     const auto* profile=circleCache().profile(radius);
-    const int last=std::min(radius,CanvasHeight-y-1);
+    const int last=std::min(radius,rasterHeight-y-1);
     for(int row=std::max(-radius,-y);row<=last;){
         const int half=profile[std::abs(row)].half;int height=1;
         while(row+height<=last && profile[std::abs(row+height)].half==half)++height;
@@ -452,7 +456,7 @@ void enemyFace(Vec center, Vec velocity, bool boss) {
 void prepareWorldEffects(){(void)circleCache();(void)reckoningJaws();}
 
 void Presentation::world(bool backdrop,float deathPreviewTime) {
-    RasterFrame rasterFrame(worldRaster);
+    RasterFrame rasterFrame(worldRaster,viewWidth,viewHeight);
     const auto playerPose=motionHistory.samplePlayer(game.player,renderFraction,interpolateMotion && !backdrop);
     const auto& previousPlayer=playerPose.previous;const auto& currentPlayer=playerPose.current;
     const std::size_t playerCount=playerPose.count;
@@ -465,9 +469,9 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
     const bool playerPathValid=playerGeometry.valid;
     if(!playerGeometry.valid)playerGeometry=geometry::buildSnake(currentPlayer.data(),currentPlayer.data(),playerCount,1,PlayerSize,WorldScale);
     const geometry::Point headWorld=playerGeometry.count>0?playerGeometry.centers[0]:geometry::Point{rounded(game.player.position.x*WorldScale),rounded(game.player.position.y*WorldScale)};
-    const int halfWidth=CanvasWidth/2,halfHeight=CanvasHeight/2,worldExtent=rounded(ArenaSize*WorldScale);
-    const int cameraX=std::clamp(headWorld.x,halfWidth,worldExtent-halfWidth)-halfWidth;
-    const int cameraY=std::clamp(headWorld.y,halfHeight,worldExtent-halfHeight)-halfHeight;
+    const int worldExtent=rounded(ArenaSize*WorldScale);
+    const auto camera=[&](double head,int size){return size>=worldExtent?double((worldExtent-size)/2):std::clamp(head-size/2,0.0,double(worldExtent-size));};
+    const int cameraX=int(camera(headWorld.x,rasterWidth)),cameraY=int(camera(headWorld.y,rasterHeight));
     geometry::PixelOrigin pixelOrigin;
     pixelOrigin.relative=interpolateMotion && !backdrop;
     if(pixelOrigin.relative && playerCount){
@@ -475,8 +479,7 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
         const double amount=playerPathValid?double(t):1;
         const double x=(double(before.x)+(double(after.x)-before.x)*amount)*WorldScale;
         const double y=(double(before.y)+(double(after.y)-before.y)*amount)*WorldScale;
-        pixelOrigin.offset={float(cameraX-(std::clamp(x,double(halfWidth),double(worldExtent-halfWidth))-halfWidth)),
-                            float(cameraY-(std::clamp(y,double(halfHeight),double(worldExtent-halfHeight))-halfHeight))};
+        pixelOrigin.offset={float(cameraX-camera(x,rasterWidth)),float(cameraY-camera(y,rasterHeight))};
         playerGeometry=geometry::buildSnake(previousPlayer.data(),currentPlayer.data(),playerCount,t,PlayerSize,WorldScale,0,0,pixelOrigin);
         if(!playerGeometry.valid)playerGeometry=geometry::buildSnake(currentPlayer.data(),currentPlayer.data(),playerCount,1,PlayerSize,WorldScale,0,0,pixelOrigin);
     }
@@ -486,13 +489,13 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
         return {float(rounded(position.x * WorldScale) - cameraX), float(rounded(position.y * WorldScale) - cameraY)};
     };
     const auto visible = [](Vec position, int padding = 10) {
-        return position.x >= -padding && position.y >= -padding && position.x <= CanvasWidth + padding && position.y <= CanvasHeight + padding;
+        return position.x >= -padding && position.y >= -padding && position.x <= rasterWidth + padding && position.y <= rasterHeight + padding;
     };
 
-    BeginScissorMode(0, 0, CanvasWidth, CanvasHeight);
-    rasterRectangle(0, 0, CanvasWidth, CanvasHeight, BLACK);
-    if(cameraX==0 || cameraY==0 || cameraX==worldExtent-CanvasWidth || cameraY==worldExtent-CanvasHeight){
-        rasterFlush();DrawRectangleLines(-cameraX,-cameraY,worldExtent,worldExtent,WHITE);
+    BeginScissorMode(0,0,rasterWidth*pixelScale,rasterHeight*pixelScale);
+    rasterRectangle(0, 0, rasterWidth, rasterHeight, BLACK);
+    if(cameraX==0 || cameraY==0 || cameraX==worldExtent-rasterWidth || cameraY==worldExtent-rasterHeight){
+        rasterFlush();outline(-cameraX,-cameraY,worldExtent,worldExtent,WHITE);
     }
 
     if(!backdrop && !game.snakeDeaths.empty()){
@@ -575,7 +578,7 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
     for(const auto& snake:game.greySnakes.trails){
         if(!snake.count)continue;
         const Vec minimum=screenPosition(snake.minimum),maximum=screenPosition(snake.maximum);
-        if(maximum.x<-PlayerSize || maximum.y<-PlayerSize || minimum.x>CanvasWidth+PlayerSize || minimum.y>CanvasHeight+PlayerSize)continue;
+        if(maximum.x<-PlayerSize || maximum.y<-PlayerSize || minimum.x>rasterWidth+PlayerSize || minimum.y>rasterHeight+PlayerSize)continue;
         const auto pose=motionHistory.sampleGrey(snake,renderFraction,interpolateMotion && !backdrop);
         if(!pose.count)continue;
         const Color color=pose.alive?Color{102,102,102,255}:Color{85,85,85,255};

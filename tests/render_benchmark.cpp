@@ -129,22 +129,25 @@ void populateGreyBarriers(snake::Game& game){
 int main(int argc,char** argv){
     try{
         int frames=240;if(argc>1)frames=std::clamp(std::stoi(argv[1]),30,10000);
-        bool diagnose=false,shield=false,grey=false,reckoning=false;
+        bool diagnose=false,shield=false,grey=false,reckoning=false,wide=false;
         for(int i=2;i<argc;++i){
             if(std::string(argv[i])=="--diagnose")diagnose=true;
             else if(std::string(argv[i])=="--shield")shield=true;
             else if(std::string(argv[i])=="--grey")grey=true;
             else if(std::string(argv[i])=="--reckoning")reckoning=true;
+            else if(std::string(argv[i])=="--wide")wide=true;
             else throw std::runtime_error("Unknown render benchmark option.");
         }
         const std::filesystem::path beside=std::filesystem::absolute(argv[0]).parent_path()/"data";
         const auto catalog=snake::Catalog::load(std::filesystem::exists(beside/"upgrades.csv")?beside.string():"data");
-        SetTraceLogLevel(LOG_WARNING);SetConfigFlags(FLAG_WINDOW_HIDDEN);InitWindow(800,500,"Snake render benchmark");SetTargetFPS(0);
+        const int width=wide?1280:800,height=wide?800:500;
+        SetTraceLogLevel(LOG_WARNING);SetConfigFlags(FLAG_WINDOW_HIDDEN);InitWindow(width,height,"Snake render benchmark");SetTargetFPS(0);
         if(!IsWindowReady())throw std::runtime_error("OpenGL window is unavailable.");
-        RenderTexture2D target=LoadRenderTexture(800,500);SetTextureFilter(target.texture,TEXTURE_FILTER_POINT);
+        RenderTexture2D target=LoadRenderTexture(width,height);SetTextureFilter(target.texture,TEXTURE_FILTER_POINT);
         {
             const auto preparing=Clock::now();
             snake::Presentation app(catalog);app.screen=snake::Screen::Game;
+            app.setViewport(width,height);
             const double preparationMs=std::chrono::duration<double,std::milli>(Clock::now()-preparing).count();
             for(int scenario=0;scenario<(reckoning?3:6);++scenario){
                 const bool dense=scenario!=0,lottery=!reckoning && scenario==2;
@@ -184,7 +187,7 @@ int main(int argc,char** argv){
                     const float revealTime=lottery?float((frame+60)%loopFrames)/60.0f:-1;
                     BeginTextureMode(target);ClearBackground(BLACK);app.draw(revealTime);EndTextureMode();
                     const auto submitted=Clock::now();
-                    BeginDrawing();ClearBackground(BLACK);DrawTextureRec(target.texture,{0,0,800,-500},{0,0},WHITE);EndDrawing();
+                    BeginDrawing();ClearBackground(BLACK);DrawTextureRec(target.texture,{0,0,float(width),-float(height)},{0,0},WHITE);EndDrawing();
                     const auto end=Clock::now();
                     peakProjectiles=std::max(peakProjectiles,app.game.projectiles.size());peakZones=std::max(peakZones,app.game.zones.size());peakSummons=std::max(peakSummons,app.game.miniSnakes.size());
                     if(moving && (app.game.phase!=snake::Phase::Playing || app.game.enemies.size()!=1800))throw std::runtime_error("Moving benchmark stopped or lost its enemy population.");
@@ -201,6 +204,7 @@ int main(int argc,char** argv){
                 const double updateMean=updates.empty()?0:mean(updates);std::sort(updates.begin(),updates.end());
                 const char* name=reckoning?(scenario==0?"reckoning_sparse":scenario==1?"reckoning_dense":"reckoning_capacity"):scenario==5?"render_only_10000":scenario==4?"moving_combat_1800":scenario==3?"moving_swarm_1800":lottery?"dense_lottery":dense?"dense":"representative";
                 std::cout<<std::fixed<<std::setprecision(4)<<"{\"scenario\":\""<<name<<"\",\"frames\":"<<frames
+                    <<",\"viewport_width\":"<<width<<",\"viewport_height\":"<<height
                     <<",\"shield\":"<<(shield?"true":"false")
                     <<",\"grey_barriers\":"<<app.game.greySnakes.barrierCount<<",\"grey_trails\":"<<app.game.greySnakes.trails.size()
                     <<",\"enemies\":"<<app.game.enemies.size()<<",\"projectiles\":"<<app.game.projectiles.size()<<",\"zones\":"<<app.game.zones.size()

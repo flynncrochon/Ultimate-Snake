@@ -387,6 +387,62 @@ shader resource, or allocation behavior changes for this revision.
 The focused ten-group death suite also passes under AddressSanitizer, and the
 Emscripten Release build passes.
 
+## Startup window borders (31 October 2026)
+
+The saved 3840×2019 window exceeded the primary display's decorated client
+limit of 3814×1993. Auto presentation dropped to 3× while retaining 707 pixels
+of padding per side and 246/247 above/below. Windows reaching the usable desktop
+limits now fit their integer-scaled canvas: 2400×1500 in this case. Smaller
+custom windows, manual pixel scales, and fullscreen modes retain their behavior.
+
+The Release settings, native display, and settings UI targets pass (25 groups).
+Native first-frame captures cover fresh default and saved windows on both
+connected monitors, including their different decoration DPI. Edge colors and
+a one-source-pixel stripe verify the presented area and integer enlargement.
+The captures and native menu were opened for review. A normal GUI launch with
+a settings copy also fits its complete decorated frame; the original settings
+file's SHA-256 remained unchanged. Five full-quality combat scenes have zero
+changed pixels.
+
+In separate 600-frame full-quality dense benchmarks, native frame
+mean/p99/worst were 0.9371/1.3598/1.7326 ms before and
+0.9643/1.5174/1.8732 ms after. The latter first frame was 1.2952 ms and warmup
+worst 1.4614 ms. A separate run concurrent with native display tests had a
+26.0545 ms spike; its raw report is retained alongside the isolated measurements
+under `artifacts/startup-borders`. These local timings vary with system load
+and do not establish hitch-free behavior. The fix adds only bounded window
+fitting work during initialization and settings changes.
+
+## Expanded browser viewport (31 October 2026)
+
+The browser now reveals more arena across its available canvas at whole-number
+pixel zoom. The desktop and source captures retain their 800×500 baseline.
+Rendering into an expanded viewport preserves every pixel in the original
+central view. Six native groups additionally cover newly visible actors on all
+four sides, 2× world/HUD/menu/settings/chest pixels, scissor bounds, and centered
+mouse/upgrade routing. All 23 configured CTest targets pass. Five full-quality
+original-resolution combat scenes retain zero changed pixels.
+
+Headless Edge WebGL2 passes nine browser checks: six sizes from 800×500 to
+2560×1080 (including 1921×1081 and DPR 2), a settings click, and fullscreen
+entry/exit. Resizing synchronizes GLFW and canvas dimensions so DPI changes
+cannot restore stale startup dimensions. Clicking also exposed miniaudio's
+dependency on `Module.HEAPF32`, now explicitly exported for Emscripten 4.
+No JavaScript exceptions occur in the completed run. Actual native and browser
+captures were opened and reviewed; generated reports are beneath
+`artifacts/web-responsive`.
+The common central region of the actual 1280×800 (1×) and 1920×1080 (2×)
+browser captures also matches in all 1,328,000 compared output pixels, excluding
+HUD regions that intentionally move to the viewport edges.
+
+For the same 600-frame native full-quality dense workload, frame mean/p99/worst
+were 0.8863/1.1501/1.6582 ms before and 0.8587/1.1140/1.3877 ms afterward. The
+1280×800 expanded fixture measured 0.8681/1.1085/1.3335 ms, with a 1.2258 ms
+first frame/warmup worst. Its 10,000-enemy overload worst was 3.5379 ms. These
+measurements include native presentation, vary with local system load, and are
+not browser FPS or proof of universal hitch-free behavior. Reproduce the
+expanded workload with `./snake.ps1 bench 600 --wide`.
+
 ## Reproduce
 
 ```powershell

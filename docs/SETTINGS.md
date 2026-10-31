@@ -20,6 +20,9 @@ The display controls follow Warforge's windowing and frame-pacing model:
 - **Window size:** changes the windowed client size. It is retained while using
   a fullscreen mode. Oversized windows fit the selected display's usable desktop
   area, including the native title bar and borders at that display's DPI scale.
+  With Auto pixel scale, windows that reach the desktop limits use a whole
+  canvas-sized client, avoiding large unused borders when decorations force a
+  lower scale. Smaller custom sizes and explicit manual scales are retained.
 - **Refresh rate:** Automatic keeps the display's desktop refresh; explicit
   supported rates are available in Fullscreen.
 - **Frame rate limit:** Uncapped, or the listed frame-rate presets. This controls
@@ -30,7 +33,9 @@ The display controls follow Warforge's windowing and frame-pacing model:
   VSync is disabled, avoiding work on frames the display cannot show.
 - **Pixel scale:** Auto chooses the largest whole-number enlargement that fits.
   A manual scale is limited to what fits the window. The logical framebuffer
-  remains 800×500, with square pixels and letterboxing.
+  remains 800×500 on desktop, with square pixels and letterboxing. The browser
+  uses that baseline to choose zoom, then reveals more arena across its available
+  canvas. Its HUD follows the expanded edges and its pixels retain integer scale.
 - **Background frame rate:** caps rendering while unfocused or minimized.
   **Pause when unfocused** also stops simulation while the game lacks focus.
 

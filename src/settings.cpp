@@ -111,6 +111,19 @@ int effectiveFrameLimit(const DisplaySettings& d,int monitorHz,bool focused,bool
     return target;
 }
 int canvasScale(const DisplaySettings& d,int width,int height){const int fit=std::max(1,std::min(width/800,height/500));return d.integerScale>0?std::min(fit,d.integerScale):fit;}
+DisplaySettings fitWindowedDisplay(DisplaySettings value,int availableWidth,int availableHeight){
+    if(value.mode!=WindowMode::Windowed)return value;
+    const int maximumWidth=std::max(800,availableWidth),maximumHeight=std::max(500,availableHeight);
+    const int width=std::min(value.width,maximumWidth),height=std::min(value.height,maximumHeight);
+    if(value.integerScale==0&&(value.width>=maximumWidth||value.height>=maximumHeight)){
+        // A title bar can put a restored window a few pixels below the next
+        // integer scale. Keep the fallback window the same size as its canvas,
+        // rather than retaining hundreds of pixels of unused black padding.
+        // Include sizes already clipped and saved by an earlier launch.
+        const int scale=canvasScale(value,width,height);value.width=800*scale;value.height=500*scale;
+    }else{value.width=width;value.height=height;}
+    return value;
+}
 bool requiresDisplayConfirmation(const DisplaySettings& a,const DisplaySettings& b){return a.mode!=b.mode||a.width!=b.width||a.height!=b.height||a.monitor!=b.monitor||a.refreshRate!=b.refreshRate;}
 DisplayTrial::DisplayTrial(DisplaySettings value):applied(value),previous(value){}
 bool DisplayTrial::apply(DisplaySettings value,bool preview){

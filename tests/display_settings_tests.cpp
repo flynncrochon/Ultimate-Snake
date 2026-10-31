@@ -1,11 +1,14 @@
 #include "display_settings.hpp"
 #include <raylib.h>
+#include <rlgl.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <functional>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace {
 void require(bool value,const char* message){if(!value)throw std::runtime_error(message);}
@@ -25,6 +28,34 @@ void requireFrameInsideWorkarea(int monitor=0){
     require(int(position.y)-top>=area.y,"Window's title bar is off-screen");
     require(int(position.x)+GetScreenWidth()+right<=area.x+area.width,"Window's right border or close button is off-screen");
     require(int(position.y)+GetScreenHeight()+bottom<=area.y+area.height,"Window's bottom border overlaps the taskbar");
+}
+void requirePresentedPixels(const snake::DisplaySettings& settings,int monitor,const char* label="startup-display"){
+    int nativeWidth=0,nativeHeight=0;glfwGetFramebufferSize(glfwGetCurrentContext(),&nativeWidth,&nativeHeight);
+    std::cout<<"  screen "<<GetScreenWidth()<<'x'<<GetScreenHeight()<<", render "<<GetRenderWidth()<<'x'<<GetRenderHeight()
+        <<", framebuffer "<<nativeWidth<<'x'<<nativeHeight<<'\n';
+    const Color fill{37,73,109,255},stripe{181,127,53,255};
+    auto canvas=LoadRenderTexture(800,500);require(canvas.id!=0,"Presentation test framebuffer unavailable");
+    SetTextureFilter(canvas.texture,TEXTURE_FILTER_POINT);
+    BeginTextureMode(canvas);ClearBackground(fill);DrawRectangle(123,0,1,500,stripe);EndTextureMode();
+    const int scale=snake::canvasScale(settings,GetScreenWidth(),GetScreenHeight());
+    const int x=(GetScreenWidth()-800*scale)/2,y=(GetScreenHeight()-500*scale)/2;
+    BeginDrawing();ClearBackground(BLACK);
+    DrawTexturePro(canvas.texture,{0,0,800,-500},{float(x),float(y),float(800*scale),float(500*scale)},{0,0},0,WHITE);
+    // raylib's LoadImageFromScreen multiplies by desktop DPI even when the
+    // window does not request HighDPI. Read the actual framebuffer dimensions.
+    rlDrawRenderBatchActive();Image image{rlReadScreenPixels(nativeWidth,nativeHeight),nativeWidth,nativeHeight,1,PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+    EndDrawing();UnloadRenderTexture(canvas);
+    require(image.data!=nullptr,"Presented window readback failed");
+    const auto path=std::filesystem::path(SNAKE_TEST_ARTIFACT_DIR)/(std::string(label)+"-"+std::to_string(monitor)+".png");
+    std::filesystem::create_directories(path.parent_path());const bool written=ExportImage(image,path.string().c_str());
+    const auto matches=[&](int px,int py,Color expected){const auto actual=GetImageColor(image,px,py);return actual.r==expected.r&&actual.g==expected.g&&actual.b==expected.b&&actual.a==expected.a;};
+    bool pixels=image.width==800*scale&&image.height==500*scale;
+    if(pixels){
+        pixels=matches(0,0,fill)&&matches(image.width-1,0,fill)&&matches(0,image.height-1,fill)&&matches(image.width-1,image.height-1,fill);
+        for(int px=122*scale;px<125*scale;++px)pixels=pixels&&matches(px,image.height/2,px>=123*scale&&px<124*scale?stripe:fill);
+    }
+    UnloadImage(image);require(written,"Startup display capture could not be saved");
+    require(pixels,"Oversized startup left unnecessary borders or changed the integer source pixels");
 }
 }
 int main(){
@@ -58,7 +89,9 @@ int main(){
             DisplayManager manager;DisplaySettings initial;initial.monitor=monitor;initial.width=7680;initial.height=4320;initial.vsync=false;
             require(manager.initialize(initial),"Oversized window initialization failed");requireFrameInsideWorkarea(monitor);
             int left=0,top=0,right=0,bottom=0;glfwGetWindowFrameSize(glfwGetCurrentContext(),&left,&top,&right,&bottom);
-            require(GetScreenWidth()==std::max(800,area.width-left-right)&&GetScreenHeight()==std::max(500,area.height-top-bottom),"Window fitting used frame dimensions from the wrong monitor DPI");
+            const int scale=std::max(1,std::min((area.width-left-right)/800,(area.height-top-bottom)/500));
+            requirePresentedPixels(manager.current(),monitor);
+            require(GetScreenWidth()==800*scale&&GetScreenHeight()==500*scale,"Window fitting used frame dimensions from the wrong monitor DPI");
             require(manager.current().width==GetScreenWidth()&&manager.current().height==GetScreenHeight(),"Startup settings do not match the fitted client size");
             require(IsWindowHidden(),"Fitting the window exposed the hidden test host");
         }
@@ -108,6 +141,20 @@ int main(){
         require(manager.current()==before&&GetScreenWidth()==before.width&&GetScreenHeight()==before.height,"Fullscreen rollback lost the fitted windowed size");
         requireFrameInsideWorkarea();require(IsWindowHidden(),"Fullscreen rollback exposed the test host");
     });
-    ClearWindowState(FLAG_VSYNC_HINT);SetTargetFPS(0);CloseWindow();
+    test("fresh default and saved windows present fitted pixels on their first frame",[]{
+        const int count=GetMonitorCount();
+        for(int monitor=0;monitor<count;++monitor){
+            for(const auto size:{DisplayMode{1600,1000,0},DisplayMode{3840,2019,0}}){
+                CloseWindow();SetConfigFlags(FLAG_WINDOW_HIDDEN|FLAG_WINDOW_RESIZABLE);
+                InitWindow(size.width,size.height,"Fresh startup display regression");SetTargetFPS(0);
+                require(IsWindowReady()&&IsWindowHidden(),"Fresh startup exposed a test window or failed to initialize");
+                DisplayManager manager;DisplaySettings initial;initial.monitor=monitor;initial.width=size.width;initial.height=size.height;initial.vsync=false;
+                require(manager.initialize(initial),"Fresh display initialization failed");requireFrameInsideWorkarea(monitor);
+                requirePresentedPixels(manager.current(),monitor,size.width==1600?"startup-default":"startup-saved");
+                require(IsWindowHidden()&&!IsAudioDeviceReady(),"Startup capture exposed the test host or opened audio");
+            }
+        }
+    });
+    if(IsWindowReady()){ClearWindowState(FLAG_VSYNC_HINT);SetTargetFPS(0);CloseWindow();}
     std::cout<<passed<<" passed, "<<failed<<" failed.\n";return failed?1:0;
 }

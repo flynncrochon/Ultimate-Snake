@@ -41,6 +41,11 @@ public:
     float chestRevealSeconds() const;
     void beginSimulationStep();
     void setRenderFrame(float alpha, bool interpolate = true);
+    // Desktop/capture defaults remain 800x500. The browser can reveal more
+    // world at the same integer pixel zoom without reallocating render assets.
+    void setViewport(int width,int height,int pixelScale=1);
+    int viewportWidth() const { return viewWidth; }
+    int viewportHeight() const { return viewHeight; }
     void startRun(std::uint32_t seed = 0);
     void finishRun();
     void captureScene(const std::string& scene);
@@ -83,6 +88,7 @@ private:
     geometry::EnemyGeometryCache enemyGeometry;
     float renderFraction = 1;
     bool interpolateMotion = false;
+    int viewWidth=CanvasWidth,viewHeight=CanvasHeight,pixelScale=1;
     int settingsTab = 0, settingsFocus = 0, rebindingAction = -1;
     bool settingsWasConfirming = false;
     std::string settingsMessage;
@@ -105,6 +111,7 @@ private:
     int wrappedCentered(const std::string& value, int x, int y, int width, Color color, int maxLines = 20, int lineHeight = 10);
     bool button(const std::string& label, int x, int y, int w, int h, bool selected = false);
     void panel(int x, int y, int w, int h, Color border);
+    void outline(int x,int y,int width,int height,Color color);
     void label(const std::string& value, int x, int y, Color color, int scale = 1);
     void wrapped(const std::string& value, int x, int y, int width, Color color);
     void bar(int x, int y, int w, int h, float ratio, Color color);

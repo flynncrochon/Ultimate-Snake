@@ -1,4 +1,5 @@
 #include "display_settings.hpp"
+#include "web_platform.hpp"
 #include <raylib.h>
 #include <algorithm>
 
@@ -37,6 +38,10 @@ bool DisplayManager::update(float,bool,bool){observeWindowResize();return false;
 void DisplayManager::updateFrameLimit(bool,bool){}
 void DisplayManager::observeWindowResize(){
     if(!impl->initialized)return;
+    // raylib's DOM resize callback bypasses GLFW's remembered window size.
+    // Keep both in sync so a later DPI/fullscreen event cannot restore the old
+    // startup dimensions and leave the canvas larger than the visible page.
+    if(const int size=web::pendingViewportSize())SetWindowSize(size>>16,size&65535);
     impl->settings.width=std::max(800,GetScreenWidth());impl->settings.height=std::max(500,GetScreenHeight());
     impl->monitors[0].width=impl->settings.width;impl->monitors[0].height=impl->settings.height;
 }

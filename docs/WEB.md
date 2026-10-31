@@ -60,9 +60,24 @@ backend, Node server, pthreads, or cross-origin isolation headers are required.
 Embedded hosts must allow scripts, WebAssembly, audio, keyboard focus, and
 fullscreen if desired (for an iframe, `allow="autoplay; fullscreen"`).
 
-The GitHub Actions **Web build** job uploads a `snake-survivors-web` static-site
-artifact on pushes and pull requests. Download and extract it for hosting. The
-workflow builds an artifact; it does not publish a live site automatically.
+The GitHub Actions **Build, test, and publish** workflow compiles the web game
+with pinned Emscripten 4.0.23 and uploads a `snake-survivors-web` static-site
+artifact on pushes and pull requests. After a successful web build, pushes to
+the repository's default branch also publish `build-web/site` to GitHub Pages.
+Pull requests, other branches, and tags do not deploy. A manual run of the
+workflow on the default branch also publishes the site.
+
+One-time repository setup: in **Settings → Pages → Build and deployment**,
+select **GitHub Actions** as the source. No personal access token or additional
+secret is required. The `github-pages` deployment environment exposes the final
+site URL in the workflow run. For this repository the default project address
+is `https://flynncrochon.github.io/Ultimate-Snake/`, unless a custom domain is
+configured. Forks publish under their own owner/repository path.
+
+The deployment job waits for the web build, has only Pages/OIDC write
+permissions, and uses GitHub's configure/upload/deploy Pages actions. Runs for
+each Git ref are serialized, with the latest pending run retained and an active
+deployment allowed to finish.
 
 ## Browser behavior
 
@@ -70,10 +85,17 @@ workflow builds an artifact; it does not publish a live site automatically.
   accumulator still advances combat at **60 Hz**. The browser controls render
   cadence and background throttling. Native monitor, refresh-rate, VSync, and FPS
   controls are disabled in web Settings. Pause when unfocused remains available.
-- The **800×500** source framebuffer, point filtering, native font, full-quality
-  effects, and integer presentation scale are retained. The page does not apply
-  fractional CSS scaling. Viewports below 800×500 scroll/crop instead of shrinking
-  the source image. The page's Fullscreen button uses the browser fullscreen API.
+- **800×500** remains the baseline for choosing integer pixel zoom. Larger
+  browser canvases reveal additional arena rather than stretching that image.
+  The shared quantized camera, native font, square pixels, point filtering, and
+  full-quality effects remain intact. HUD elements anchor to the expanded
+  viewport edges; menus and settings stay centered, with matching mouse routing.
+  The browser renders directly at integer zoom, reusing its prepared shaders and
+  batches without allocating render textures on resize. Canvas dimensions and
+  GLFW's window metadata stay synchronized through resize, DPI, and fullscreen
+  changes. The page applies no fractional CSS scaling. Viewports below 800×500
+  scroll/crop instead of shrinking pixels. The Fullscreen button uses the
+  browser fullscreen API.
 - Click the game to focus keyboard input and unlock audio under browser autoplay
   rules. Enter starts a run; Escape pauses. Escape in the character menu keeps the
   web game open. Browser-reserved shortcuts may require rebinding in Settings.
@@ -108,3 +130,19 @@ p99 values were 1.0911/1.1078 ms on the local machine. These are native renderin
 measurements, not browser FPS. A dense browser benchmark and a full browser
 playthrough have not been completed; the browser checks above establish basic
 functionality, not universal frame-time guarantees.
+
+The expanded viewport was checked on 31 October 2026. All 23 desktop/headless
+CTest targets pass, including six new native viewport groups. They verify newly
+visible actors on all four sides, unchanged pixels in the original central
+view, integer enlargement of world/HUD/menu/settings/chest pixels, and aligned
+mouse/upgrade routing. Five original-resolution combat captures have zero
+changed pixels. Headless Edge WebGL2 checks cover six browser sizes (including
+odd dimensions and DPR 2), a centered settings click, fullscreen entry/exit,
+and audio activation without JavaScript errors. Native and browser captures
+were opened for review. See [validation](VALIDATION.md) for timings and limits.
+
+`scripts/check_web_viewport.mjs` runs these browser checks with Node 22+ against
+a running game and an isolated Chromium/Edge DevTools endpoint. Its optional
+arguments are the game URL and DevTools HTTP endpoint; defaults are
+`http://127.0.0.1:18765/index.html` and `http://127.0.0.1:18766`. It writes
+captures and a report beneath `artifacts/web-responsive/browser`.

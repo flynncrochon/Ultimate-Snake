@@ -94,6 +94,10 @@ WorldRaster::~WorldRaster(){
     }
 }
 bool WorldRaster::ready() const {return storage->valid;}
+void WorldRaster::setViewport(int width,int height){
+    auto& s=*storage;if(s.width==width&&s.height==height)return;
+    flush();s.width=std::clamp(width,1,16384);s.height=std::clamp(height,1,16384);
+}
 void WorldRaster::rectangle(int x,int y,int width,int height,Color color){
     auto& s=*storage;
     if(width<=0 || height<=0 || color.a==0)return;

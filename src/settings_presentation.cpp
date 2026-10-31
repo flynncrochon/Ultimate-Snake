@@ -195,16 +195,16 @@ void Presentation::updateSettings(float){
 }
 
 void Presentation::drawSettings(){
-    DrawRectangle(0,0,CanvasWidth,CanvasHeight,{0,0,0,225});DrawRectangle(PanelX,PanelY,PanelW,PanelH,{12,12,12,255});DrawRectangleLines(PanelX,PanelY,PanelW,PanelH,Dim);
+    DrawRectangle(-(viewWidth-CanvasWidth)/2,-(viewHeight-CanvasHeight)/2,viewWidth,viewHeight,{0,0,0,225});DrawRectangle(PanelX,PanelY,PanelW,PanelH,{12,12,12,255});outline(PanelX,PanelY,PanelW,PanelH,Dim);
     centered("SETTINGS",CanvasWidth/2,48,White,2);
     constexpr const char* tabs[]{"DISPLAY","GRAPHICS","AUDIO","CONTROLS"};
-    for(int tab=0;tab<4;++tab){const int x=80+tab*160;const bool active=tab==settingsTab;DrawRectangleLines(x,78,150,25,active?Accent:Dim);centered(tabs[tab],x+75,86,active?Accent:Muted);}
+    for(int tab=0;tab<4;++tab){const int x=80+tab*160;const bool active=tab==settingsTab;outline(x,78,150,25,active?Accent:Dim);centered(tabs[tab],x+75,86,active?Accent:Muted);}
     const auto options=rows(*this);
     for(std::size_t i=0;i<options.size();++i){
         const auto& row=options[i];const int y=RowY+int(i)*RowPitch;const bool selected=int(i)==settingsFocus;
         const Color text=row.disabled?Disabled:selected?White:Muted;
         if(selected)DrawRectangle(RowX-7,y-2,ControlX+ControlW-RowX+13,RowH+4,{25,25,25,255});
-        label(row.label,RowX,y+6,text);DrawRectangleLines(ControlX,y,ControlW,RowH,row.disabled?Color{35,35,35,255}:selected?Accent:Dim);
+        label(row.label,RowX,y+6,text);outline(ControlX,y,ControlW,RowH,row.disabled?Color{35,35,35,255}:selected?Accent:Dim);
         if(row.kind==Kind::Slider){
             const int width=ControlW-100;DrawRectangle(ControlX+24,y+9,width,3,{50,50,50,255});DrawRectangle(ControlX+24,y+9,int(std::lround(row.slider*width)),3,Accent);DrawRectangle(ControlX+22+int(std::lround(row.slider*width)),y+4,4,13,White);centered(row.value,ControlX+ControlW-38,y+6,text);
         }else{label("<",ControlX+8,y+6,row.disabled?Disabled:Accent);centered(rebindingAction==int(i)&&settingsTab==3?"Press a key...":row.value,ControlX+ControlW/2,y+6,text);label(">",ControlX+ControlW-14,y+6,row.disabled?Disabled:Accent);}
@@ -213,15 +213,15 @@ void Presentation::drawSettings(){
     if(message.empty()&&settingsTab==3)message="Enter to bind. Esc cancels binding.";
     wrappedCentered(message,CanvasWidth/2,403,PanelW-50,Accent,2,10);
     constexpr const char* buttons[]{"APPLY","CANCEL","DEFAULTS"};const int count=int(options.size());
-    for(int i=0;i<3;++i){const int x=106+i*206;const bool selected=settingsFocus==count+i;const bool hover=within(mouse,x,434,176,26);DrawRectangleLines(x,434,176,26,selected||hover?Accent:Dim);centered(buttons[i],x+88,443,selected||hover?White:Muted);}
+    for(int i=0;i<3;++i){const int x=106+i*206;const bool selected=settingsFocus==count+i;const bool hover=within(mouse,x,434,176,26);outline(x,434,176,26,selected||hover?Accent:Dim);centered(buttons[i],x+88,443,selected||hover?White:Muted);}
     centered("Tab Page  Up/Down Select  Left/Right Change  Enter Confirm  Esc Cancel",CanvasWidth/2,480,Muted);
     if(pending(*this)){
-        DrawRectangle(0,0,CanvasWidth,CanvasHeight,{0,0,0,210});DrawRectangle(175,178,450,156,{16,16,16,255});DrawRectangleLines(175,178,450,156,Accent);
+        DrawRectangle(-(viewWidth-CanvasWidth)/2,-(viewHeight-CanvasHeight)/2,viewWidth,viewHeight,{0,0,0,210});DrawRectangle(175,178,450,156,{16,16,16,255});outline(175,178,450,156,Accent);
         centered("KEEP DISPLAY SETTINGS?",CanvasWidth/2,196,White,2);
         const float seconds=displayConfirmationSeconds?displayConfirmationSeconds():15;
         centered("Reverting in "+std::to_string(std::max(0,int(std::ceil(seconds))))+" seconds",CanvasWidth/2,237,Muted);
-        DrawRectangleLines(236,288,152,28,Accent);centered("ENTER - KEEP",312,298,White);
-        DrawRectangleLines(412,288,152,28,Dim);centered("ESC - REVERT",488,298,Muted);
+        outline(236,288,152,28,Accent);centered("ENTER - KEEP",312,298,White);
+        outline(412,288,152,28,Dim);centered("ESC - REVERT",488,298,Muted);
     }
 }
 }

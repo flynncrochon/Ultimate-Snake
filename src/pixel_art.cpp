@@ -8,6 +8,10 @@
 #include <vector>
 
 namespace pixel {
+void outline(int x,int y,int width,int height,Color color){
+    DrawRectangle(x-1,y,width+1,1,color);DrawRectangle(x+width-1,y-1,1,height+2,color);
+    DrawRectangle(x-1,y+height,width+2,1,color);DrawRectangle(x-1,y,1,height+1,color);
+}
 namespace {
 constexpr int SpriteCount = 20;
 constexpr int IconCount = 27;

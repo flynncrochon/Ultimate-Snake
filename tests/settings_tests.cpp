@@ -73,6 +73,31 @@ int main(){
         d.integerScale=3;require(canvasScale(d,1600,1000)==2,"Manual scale overflowed the window");d.integerScale=1;require(canvasScale(d,3840,2160)==1,"A requested 1x scale was ignored");
         require(canvasScale(d,100,100)==1,"A minimized/small client produced zero scale");
     });
+    test("oversized startup trims auto scale padding after fitting native decorations",[]{
+        DisplaySettings requested;requested.width=3840;requested.height=2019;
+        const auto fitted=fitWindowedDisplay(requested,3814,1993);
+        require(fitted.width==2400&&fitted.height==1500,"The 4x to 3x startup fallback retained massive borders");
+        require(fitted.integerScale==0&&fitted.vsync==requested.vsync&&fitted.mode==requested.mode,"Window fitting changed unrelated preferences");
+        requested.width=1600;requested.height=1000;
+        const auto smaller=fitWindowedDisplay(requested,1904,993);
+        require(smaller.width==800&&smaller.height==500,"A title bar just below the 2x threshold retained padding");
+        requested.height=993;
+        const auto saved=fitWindowedDisplay(requested,1904,993);
+        require(saved.width==800&&saved.height==500,"A previously clipped saved window retained startup padding");
+        const auto tiny=fitWindowedDisplay(requested,640,400);
+        require(tiny.width==800&&tiny.height==500,"Window fitting violated the minimum source size");
+    });
+    test("window fitting preserves valid custom sizes manual scale and fullscreen preferences",[]{
+        DisplaySettings requested;requested.width=1280;requested.height=720;requested.targetFps=165;requested.monitor=1;
+        require(fitWindowedDisplay(requested,1904,993)==requested,"A valid custom window size was snapped unnecessarily");
+        requested.width=3840;requested.height=2019;requested.integerScale=1;
+        auto expected=requested;expected.width=3814;expected.height=1993;
+        require(fitWindowedDisplay(requested,3814,1993)==expected,"Fitting discarded an explicit manual pixel scale");
+        requested.mode=WindowMode::Borderless;
+        require(fitWindowedDisplay(requested,1904,993)==requested,"Window fitting changed borderless preferences");
+        requested.mode=WindowMode::Fullscreen;
+        require(fitWindowedDisplay(requested,1904,993)==requested,"Window fitting changed fullscreen preferences");
+    });
     test("conflicting bindings fail without losing either action",[]{
         ControlSettings controls;const auto before=controls;std::string error;
         require(!bindKey(controls,Action::Pause,controls.keys[std::size_t(Action::Up)],&error)&&controls==before&&!error.empty(),"Conflicting rebind mutated controls");

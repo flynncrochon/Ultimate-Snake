@@ -18,6 +18,7 @@ public:
     WorldRaster(const WorldRaster&) = delete;
     WorldRaster& operator=(const WorldRaster&) = delete;
     bool ready() const;
+    void setViewport(int width,int height);
     void rectangle(int x,int y,int width,int height,Color color);
     void pixel(int x,int y,Color color) { rectangle(x,y,1,1,color); }
     void line(int x1,int y1,int x2,int y2,Color color);

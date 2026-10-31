@@ -128,7 +128,7 @@ Malformed CSV, duplicate IDs, unknown patterns/stats, invalid numeric values, an
 
 ## Presentation and pixel contract
 
-- The sole logical framebuffer is 800×500.
+- Desktop presentation and deterministic source captures use an 800×500 logical framebuffer. The browser viewport expands beyond that baseline to reveal more arena at the same whole-pixel zoom.
 - Gameplay uses the full pure black canvas. There is no reserved sidebar or decorative terrain.
 - Kills, five hearts, and two rows of equipment slots float at the upper left. The timer is upper center, length is upper right, XP is bottom center, and the minimap is bottom right, following the JavaScript composition.
 - Character selection shows all four original cards simultaneously. Level selection retains the original `CHOOSE AN ITEM` heading and card hierarchy. Pause and results use the original simple text overlays.
@@ -137,7 +137,7 @@ Malformed CSV, duplicate IDs, unknown patterns/stats, invalid numeric values, an
 - The font is the unchanged `PixelOperator8.ttf` used by Warforge, baked at its native eight-source-pixel size with monochrome rasterization and point filtering. Case and original glyph advances are preserved.
 - Upgrade icons are raster conversions of the original SVG definitions, stored as `data/icons/original-icons.png`. Native variants are 8, 10, 16, 24, and 32 pixels; runtime rendering uses point filtering.
 - World-to-screen coordinates, sprite edges, effects, text, and UI are quantized to the same source-pixel grid.
-- Window presentation uses the largest fitting integer multiplier and centered letterboxing, with no smooth texture filtering or fractional final scale.
+- Desktop window presentation uses the largest fitting integer multiplier and centered letterboxing. The browser fills its canvas by extending the camera view, drawing directly at integer zoom without allocating new render textures during resize. Both retain point filtering and square source pixels without fractional scale.
 
 Projectiles can have fractional simulation positions. Player, enemy, and summoned-snake head/body waypoints stay on the logical grid. Snake rendering follows the historical cardinal centerline with a single quantized interpolation progress, fixed-width opaque spans, and a shared integer camera. This keeps elbows filled and trims moving heads and tails consistently, avoiding diagonal corner pixels and segment gaps. Every visible source pixel has the same physical dimensions. HUD and world share the framebuffer; there is no separately scaled high-resolution text overlay.
 

@@ -93,7 +93,9 @@ if(SNAKE_BUILD_GAME)
             -fexceptions -sUSE_GLFW=3 -sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2
             -sINITIAL_MEMORY=268435456 -sSTACK_SIZE=8388608 -sALLOW_MEMORY_GROWTH=0
             -sEXIT_RUNTIME=0 -sENVIRONMENT=web -lidbfs.js
-            "-sEXPORTED_RUNTIME_METHODS=['FS','addRunDependency','removeRunDependency']"
+            # raylib 5.5's miniaudio callback reads this view after a user
+            # gesture unlocks Web Audio; Emscripten 4 no longer exports it by default.
+            "-sEXPORTED_RUNTIME_METHODS=['FS','addRunDependency','removeRunDependency','HEAPF32']"
             "SHELL:--shell-file \"${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html\""
             "SHELL:--preload-file \"${CMAKE_CURRENT_SOURCE_DIR}/data@/data\"")
         set_target_properties(snake_survivors PROPERTIES OUTPUT_NAME index SUFFIX .html)
@@ -131,7 +133,7 @@ if(SNAKE_BUILD_GAME)
             SNAKE_TEST_ARTIFACT_DIR="${CMAKE_CURRENT_SOURCE_DIR}/artifacts/gametest")
         set_target_properties(snake_presentation_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<0:>")
         add_dependencies(snake_presentation_tests snake_assets)
-        foreach(native_suite IN ITEMS world_raster display_settings settings_ui gui_text effect_art death_art)
+        foreach(native_suite IN ITEMS world_raster display_settings settings_ui gui_text effect_art death_art viewport)
             add_executable(snake_${native_suite}_tests tests/${native_suite}_tests.cpp)
             target_link_libraries(snake_${native_suite}_tests PRIVATE snake_presentation)
             if(native_suite STREQUAL "display_settings" AND NOT EMSCRIPTEN)

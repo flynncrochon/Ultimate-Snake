@@ -4,6 +4,9 @@
 #include <string>
 
 namespace pixel {
+// Matches raylib's opaque 1x line border using filled source pixels, so integer camera
+// zoom also enlarges the stroke on WebGL implementations with 1px GL lines.
+void outline(int x,int y,int width,int height,Color color);
 
 // All sprite coordinates name the top-left source pixel. Every sprite is 8x8.
 enum class Sprite {

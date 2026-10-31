@@ -46,6 +46,9 @@ bool bindKey(ControlSettings&,Action,int key,std::string* error=nullptr);
 int effectiveFrameLimit(const DisplaySettings&,int monitorHz,bool focused=true,bool minimized=false);
 // Preserve square source pixels and cap a manual integer scale to what fits.
 int canvasScale(const DisplaySettings&,int clientWidth,int clientHeight);
+// Fit a window to the usable client area. Auto scale trims windows reaching
+// its limits to whole canvas multiples instead of surrounding them with padding.
+DisplaySettings fitWindowedDisplay(DisplaySettings,int availableWidth,int availableHeight);
 bool requiresDisplayConfirmation(const DisplaySettings& before,const DisplaySettings& after);
 
 // Pure rollback state used by the native adapter and device-free tests.
