@@ -26,20 +26,8 @@ Open http://localhost:18765.
 
 ## Python API
 
-Requires Python 3.10+, with no pip dependencies.
-
 ```sh
-python -m game_tests.run --list
-python -m game_tests.run --tier logic
+python -m game_tests.run
 ```
 
-```python
-from game_tests.snake_test import Game
-
-with Game() as game:
-    game.reset(seed=123)
-    game.step(60)
-    print(game.snapshot()["counts"])
-```
-
-[API reference](docs/GAME_TEST_API.md).
+[API docs](docs/GAME_TEST_API.md).
