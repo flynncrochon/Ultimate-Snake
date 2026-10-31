@@ -1,4 +1,4 @@
-name: Build, test, and publish
+name: Build Test and Publish
 on:
   push:
   pull_request:
@@ -16,12 +16,16 @@ jobs:
   web:
     name: Web build
     runs-on: ubuntu-latest
+    env:
+      EMSCRIPTEN_VERSION: '4.0.23'
     steps:
       - uses: actions/checkout@v4
       - uses: mymindstorm/setup-emsdk@v14
         with:
-          version: '4.0.23'
+          version: ${{ env.EMSCRIPTEN_VERSION }}
           actions-cache-folder: emsdk-cache
+          # The action otherwise uses the display name, which may contain commas.
+          cache-key: emsdk-${{ runner.os }}-${{ runner.arch }}-${{ env.EMSCRIPTEN_VERSION }}
       - name: Configure web
         run: emcmake cmake -S . -B build-web -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
       - name: Build web

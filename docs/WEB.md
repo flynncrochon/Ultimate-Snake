@@ -60,7 +60,7 @@ backend, Node server, pthreads, or cross-origin isolation headers are required.
 Embedded hosts must allow scripts, WebAssembly, audio, keyboard focus, and
 fullscreen if desired (for an iframe, `allow="autoplay; fullscreen"`).
 
-The GitHub Actions **Build, test, and publish** workflow compiles the web game
+The GitHub Actions **Build Test and Publish** workflow compiles the web game
 with pinned Emscripten 4.0.23 and uploads a `snake-survivors-web` static-site
 artifact on pushes and pull requests. After a successful web build, pushes to
 the repository's default branch also publish `build-web/site` to GitHub Pages.
