@@ -11,6 +11,8 @@
 #include "world_raster.hpp"
 #include "effect_art.hpp"
 #include "death_art.hpp"
+#include "flood_art.hpp"
+#include "profile.hpp"
 #include <raylib.h>
 #include <string>
 #include <functional>
@@ -20,12 +22,12 @@ namespace snake {
 void prepareWorldEffects();
 constexpr int CanvasWidth = 800;
 constexpr int CanvasHeight = 500;
-struct Profile { int bestKills = 0, runs = 0, bestSeconds = 0, victories = 0; bool sound = true; };
 enum class Screen { Menu, Countdown, Game };
 
 class Presentation {
 public:
-    explicit Presentation(const Catalog& catalog, const Settings& initialSettings = defaultSettings());
+    explicit Presentation(const Catalog& catalog, const Settings& initialSettings = defaultSettings(),
+        const std::string& profilePath = {},bool persistentProfile = false);
     ~Presentation();
     void update(float dt, Vec mouse, bool mousePressed);
     // A nonnegative preview time samples the chest animation without advancing it.
@@ -49,6 +51,17 @@ public:
     void startRun(std::uint32_t seed = 0);
     void finishRun();
     void captureScene(const std::string& scene);
+    void openPermanentUpgrades();
+    void closePermanentUpgrades();
+    bool purchaseUpgrade(PermanentUpgrade upgrade);
+    bool refundUpgrades();
+    void retryProfileSave();
+    const Profile& currentProfile() const { return profile; }
+    ProfileSaveState profileSaveState() const {
+        const auto state=profileStorage.state();
+        return state==ProfileSaveState::Saved && profileSavePending?ProfileSaveState::Saving:state;
+    }
+    bool permanentUpgradesOpen() const { return permanentOpen; }
     void openSettings();
     void closeSettings();
     void updateSettings(float dt);
@@ -72,8 +85,13 @@ private:
     render::EffectArt effectArt;
     render::WorldRaster worldRaster;
     render::DeathArt deathArt;
+    render::FloodArt floodArt;
+    ProfileStorage profileStorage;
     Profile profile;
-    std::string savePath;
+    bool permanentOpen=false,profileChanged=false,profileSavePending=false,runStarted=false;
+    int permanentFocus=0;
+    std::int64_t bankedGold=0;
+    std::string permanentMessage;
     Vec mouse;
     bool clicked = false, recorded = false;
     int focus = 0, hoveredOffer = 0;
@@ -97,8 +115,9 @@ private:
     std::array<std::array<Sound, audio::VariationCount>, audio::EffectCount> sounds{};
     std::array<Sound, audio::VoiceCount> audioVoices{};
     Sound reelTickSound{};
-    void loadProfile();
     void saveProfile();
+    void updatePermanentUpgrades(bool mouseMoved);
+    void drawPermanentUpgrades();
     void world(bool backdrop = false,float deathPreviewTime = -1);
     void hud();
     void menu();

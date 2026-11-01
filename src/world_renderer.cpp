@@ -498,6 +498,39 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
         rasterFlush();outline(-cameraX,-cameraY,worldExtent,worldExtent,WHITE);
     }
 
+    if(!backdrop)floodArt.draw(game.flood,worldRaster,cameraX,cameraY,viewWidth,viewHeight,pixelOrigin.offset,renderFraction,interpolateMotion);
+
+    const auto& lock=game.graviton;
+    const float lockAge=std::max(0.0f,lock.age+renderOffset);
+    if(settings.render.weaponEffects && lock.duration>0 && lockAge<lock.duration+.24f){
+        const Vec center=screenPosition(lock.center);
+        const int radius=rounded(lock.radius*WorldScale),cx=rounded(center.x),cy=rounded(center.y);
+        if(visible(center,radius+20)){
+            const float release=std::clamp((lockAge-lock.duration)/.24f,0.0f,1.0f);
+            const unsigned char opacity=static_cast<unsigned char>(rounded(255*(1-release)));
+            const int reach=rounded(float(radius)*std::clamp(lockAge/.18f,0.0f,1.0f));
+            // A rooted lattice, built exclusively from native source pixels.
+            // The wave reveals whole grid lines; the field never follows the head.
+            for(int offset=-radius;offset<=radius;offset+=Tile*5/2)if(std::abs(offset)<=reach){
+                rasterLine(cx+offset,cy-reach,cx+offset,cy+reach,{10,34,53,opacity});
+                rasterLine(cx-reach,cy+offset,cx+reach,cy+offset,{10,34,53,opacity});
+            }
+            const int edge=radius+rounded(release*12);
+            for(int sx:{-1,1})for(int sy:{-1,1}){
+                const int x=cx+sx*edge,y=cy+sy*edge;
+                rasterLine(x,y,x-sx*12,y,{71,184,245,opacity});
+                rasterLine(x,y,x,y-sy*12,{71,184,245,opacity});
+                rasterRectangle(x-1,y-1,3,3,{179,235,255,opacity});
+            }
+            if(lockAge<.18f){
+                rasterLine(cx-reach,cy-reach,cx+reach,cy-reach,{73,195,255,220});
+                rasterLine(cx-reach,cy+reach,cx+reach,cy+reach,{73,195,255,220});
+                rasterLine(cx-reach,cy-reach,cx-reach,cy+reach,{73,195,255,220});
+                rasterLine(cx+reach,cy-reach,cx+reach,cy+reach,{73,195,255,220});
+            }
+        }
+    }
+
     if(!backdrop && !game.snakeDeaths.empty()){
         rasterFlush();
         for(const auto& death:game.snakeDeaths){
@@ -605,6 +638,7 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
     }
 
     for (const Enemy& enemy : game.enemies) {
+        if(enemy.kind==EnemyKind::Flood)continue;
         if (!enemy.alive) continue;
         if(!visible(screenPosition(enemy.position),200))continue;
         const auto pose=motionHistory.sampleEnemy(enemy,renderFraction,interpolateMotion);
@@ -640,6 +674,14 @@ void Presentation::world(bool backdrop,float deathPreviewTime) {
         // head color and retain that layer.
         if(boss || enemy.hitFlash>0)block(position,headSize,enemy.hitFlash>0?Color{255,85,85,255}:color);
         if(face)enemyFace(position, faceDirection, boss);
+        if(settings.render.weaponEffects && enemy.gravityHold>0 && !enemy.grabbed){
+            const int gap=size/2+4,cx=rounded(position.x),cy=rounded(position.y);
+            for(int sx:{-1,1})for(int sy:{-1,1}){
+                const int x=cx+sx*gap,y=cy+sy*gap;
+                rasterLine(x,y,x-sx*4,y,{108,211,255,255});
+                rasterLine(x,y,x,y-sy*4,{108,211,255,255});
+            }
+        }
         if (boss) {
             const int barX = rounded(position.x) - 15, barY = rounded(position.y) - 14;
             rasterRectangle(barX - 1, barY - 1, 32, 5, {0, 0, 0, 160});

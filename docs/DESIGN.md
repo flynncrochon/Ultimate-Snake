@@ -4,9 +4,9 @@
 
 Recreate the JavaScript game's presentation closely: a pure black full-window arena, connected flat white player snake, saturated red pursuers, blue splitters, purple bosses, green venom, and plain white fruit. Preserve the original four-card character selection, floating HUD arrangement, narrow item cards, and simple pause/result overlays. Use Warforge's exact Pixel Operator 8 font and rasterized versions of the original upgrade artwork.
 
-The target is a complete 20-minute run with a start, escalating enemy pressure, repeated build choices, chest-driven evolution payoffs, and a results overlay. Visual composition follows the original. The C++ backend preserves the nine base weapons' source formulas and the nine evolutions' distinct actor lifecycles. Evolutions apply intentional native balance tuning so they retain the offensive passive investment used by their base weapons. [`WEAPON_PARITY.md`](WEAPON_PARITY.md) records the original reference, current native overrides, and grid-safe fixes. The director and character framework remain native systems. [`REFERENCE_VISUALS.md`](REFERENCE_VISUALS.md) records the original screen layouts and source coordinates.
+The target is a complete 30-minute run with a start, scheduled enemy waves, repeated build choices, chest-driven evolution payoffs, and a results overlay. The researched Vampire Survivors pacing and deliberate Snake adaptations are documented in [`PROGRESSION.md`](PROGRESSION.md). Visual composition follows the original. The C++ backend preserves the nine base weapons' source formulas and the nine evolutions' distinct actor lifecycles. Evolutions apply intentional native balance tuning so they retain the offensive passive investment used by their base weapons. [`WEAPON_PARITY.md`](WEAPON_PARITY.md) records the original reference, current native overrides, and grid-safe fixes. The director and character framework remain native systems. [`REFERENCE_VISUALS.md`](REFERENCE_VISUALS.md) records the original screen layouts and source coordinates.
 
-Automated fixed-build combat experiments support native evolution tuning; [`BALANCE_SIMULATIONS.md`](BALANCE_SIMULATIONS.md) records measured scenarios and their limits. A complete human playthrough and progression/survival balance pass remain outstanding. Automated 20-minute simulation checks verify run stability and scheduling with invulnerability, which does not establish survival difficulty, fair progression, or equivalent strength between builds.
+Automated fixed-build combat experiments support native evolution tuning; [`BALANCE_SIMULATIONS.md`](BALANCE_SIMULATIONS.md) records measured scenarios and their limits. A complete human playthrough and progression/survival balance pass remain outstanding. Automated full-length simulation checks verify run stability and scheduling with invulnerability, which does not establish survival difficulty, fair progression, or equivalent strength between builds.
 
 ## Run specification
 
@@ -20,20 +20,23 @@ Automated fixed-build combat experiments support native evolution tuning; [`BALA
 | Enemy movement | One cardinal grid cell per speed-dependent tick; bodies follow prior cells and rendering interpolates between waypoints |
 | Starting snake | 7 connected segments; one character weapon |
 | Health | 100 HP; contact consumes a shield charge when available, otherwise damages HP and grants brief invulnerability |
-| Growth | Each collected XP fruit adds its raw XP value to length, capped at 120 segments; XP bonuses and level-ups add no extra length |
+| Drops | Ground loot stays on in-bounds grid cells; the head collects within one tile of its movement path, without attraction or passive range extensions |
+| Growth | XP fruit adds its raw XP value to length; hearts add one segment and each chest reward adds one, capped at 120 segments; XP bonuses and level-ups add no extra length |
 | Level offers | Three unique eligible definitions; first offer is a weapon when one is available |
 | Equipment | Four weapon slots plus four passive slots |
 | Offer weighting | Definition weight ×4 for an upgrade already owned |
 | Rank caps | Eight for normal definitions; two for Coiled Volley |
 | Reroll / banish | Three of each per run; banished definitions leave the offer pool |
 | Exhausted pool | Choose healing and gold when no eligible upgrades remain |
-| Bosses | First at 1:00, then every 2:00; bosses drop chests |
+| XP costs | 5 initially; tiered 10/13/16 increments with level 20/40 walls and temporary +100% Growth; fractional XP carries |
+| Waves | Thirty 60-second rows with population/cadence changes; periodic ordinary limit 300; at most eight ordinary spawns per update |
+| Bosses | Nineteen authored milestones from 1:00 through 29:00; spawn-time HP x Level; guaranteed native chests |
 | Evolution | Max-rank weapon plus its paired passive at any rank; collect a chest |
-| Victory | Reach 20:00 |
+| Victory | Reach 30:00 (108,000 fixed updates, excluding paused states) |
 | Results | Space or Enter returns to character selection |
 | Pause | Escape/P toggles pause; Space or Enter also resumes |
 
-Enemy spawning speeds up over elapsed run time. Red serpents form the basic pursuing swarm, blue splitters create fast children when defeated, swift enemies introduce faster pressure, and bosses supply chest milestones. Enemy and projectile capacities are bounded to keep overload behavior predictable.
+Enemy waves alternate pressure and recovery instead of continuously raising every enemy's HP. Red serpents form the basic pursuing swarm, blue splitters create fast children when defeated, swift enemies introduce faster pressure, and bosses supply chest milestones. Enemy and projectile capacities are bounded to keep overload behavior predictable. Ordinary enemies keep their spawn stats; bosses and the last two elite waves use player level only when created.
 
 Enemy head and body positions are logical grid waypoints, not continuously steered coordinates. Each tick chooses a cardinal step toward the player while avoiding the actual neck cell and arena bounds. Slows lengthen the step interval. Spawn, recycling, and forced movement snap to the same grid; knockback translates the body and resets interpolation history so it cannot leave diagonal drift or a stretched trail. Presentation interpolates prior/current waypoints without changing their logical coordinates.
 
@@ -51,6 +54,13 @@ An attempted move into the retained body or an arena wall holds the entire snake
 | Basilisk | Plague Mortar | ×1.20 duration |
 
 ## Content model
+
+Permanent Shedskin upgrades are bought from the character menu and inherited by
+new runs. The shared gold wallet, eight bounded bonuses, full refunds and SS1
+save migration are documented in [`PERMANENT_UPGRADES.md`](PERMANENT_UPGRADES.md).
+They retain the existing player art, weapon geometry and movement. Profile
+reads occur at startup; native writes use an atomic replacement on a background
+worker rather than synchronous I/O in update/render.
 
 `src/core.hpp` defines data structures and the public simulation API. `src/core.cpp` loads definitions, evaluates bonuses, selects eligible offers, resolves combat, and advances a run. `src/weapon_spec.cpp` resolves source-specific rank, evolution, and bonus formulas; `src/weapon_system.cpp` owns projectiles, pools, beams, cobras, the leviathan, grapples, orbiting fangs, and shields. `src/enemy_system.cpp` handles enemy grid ticks and placement; `src/nest_system.cpp` owns eggs and summoned snakes. `src/snake_geometry.cpp` builds continuous cardinal snake silhouettes. These simulation and geometry files contain no raylib dependency.
 
@@ -84,14 +94,49 @@ Supported modifier names:
 | `cooldown` | Multiplies by `(1 + value)^rank`; product clamped to 0.025 through 3 before character bonus |
 | `area`, `duration`, `range`, `speed` | Add to their base-1 multipliers, each bounded by the evaluator |
 | `amount` | Adds to projectile count, rounded and bounded |
-| `pickup` | Adds simulation units to the base 20-unit attraction radius |
+| `pickup` | Legacy catalog field; ground collection is fixed at one tile (8 simulation units) |
 | `crit` | Adds probability from a zero base; total capped at 100%; critical hits double eligible damage |
 | `growth` | Adds to the XP gain multiplier, base 1 |
-| `armor` | Optional custom flat reduction to contact damage, bounded; the shipped Serpent's Scales uses shield charges instead |
+| `armor` | Custom flat reduction to enemy contact damage, capped at 24 with a minimum hit of 3 damage; Serpent's Scales uses shield charges |
 
 Most bonus contributions sum by stat before character multipliers; cooldown reductions multiply. Ravenous Maw's direct-damage bonus rises linearly from +10% at rank 1 to +50% at rank 8, while XP gain is `1 + 0.25 * rank`. Its XP bonus does not multiply snake growth: length follows raw collected XP, including fruit vacuumed by evolved weapons. Dead Eye adds 12.5% critical chance per rank. Chronofield, Toxic Expanse, and Serpent's Reach add 25% duration, 15% area, and 12% range per rank respectively. Serpent's Scales replenishes shield charges with counts `[1,1,1,2,2,3,3,3]` and a cooldown decreasing linearly from 10 to 4 seconds. A charge absorbs an entire enemy hit; this passive grants no armor or protection from self-contact.
 
 Generic stat bonuses require a CSV row and optionally an icon, without per-frame wiring. Weapons have individual rank formulas, targeting rules, bonus exclusions, rounding stages, and evolved lifecycles rather than a common percentage-per-rank rule. [`WEAPON_PARITY.md`](WEAPON_PARITY.md) is the detailed weapon contract. New behavior belongs in the native weapon system; resolved values are exposed as `WeaponSpec` for UI and tests. Poison and nest bites retain the source exclusions from direct-damage bonuses and critical hits.
+
+### Gridlock
+
+Gridlock replaces Graviton's pickup-range bonus with a movement-driven gravity
+trap. Each successful cardinal turn adds one charge; holding a direction,
+reversals, and blocked movement do not. Four turns bank a full charge. When a
+living, ungrabbed enemy is in range and the five-second recharge is complete,
+the charge stamps a stationary square field at the head's grid cell.
+
+The field suspends the movement clocks of enemies inside its square at cast
+time, including bosses. It does not deal damage or prevent contact damage.
+Weapons can still damage and displace pinned enemies, and grapples keep their
+existing ownership rules. Later arrivals are not caught by the old field.
+Movement resumes from the same fractional cell phase without catch-up steps.
+Radius is `3 + floor((rank-1)/2)` tiles and hold duration is `.65 + .1*rank`
+seconds. Ranks run from 1 to 8. Charges can accumulate during recharge; an empty
+cast is held until a target enters range. Pause and selection freeze all clocks.
+Unequipping releases pinned enemies and clears the charge and field.
+
+The lattice, pulse, and target brackets use the existing bounded pixel batch;
+disabling weapon effects hides them without changing simulation. The four charge
+pips sit beneath its HUD icon. The catalog ID `graviton` and original gravity-coil
+art remain stable; the GameTest API also accepts `gridlock` and exposes the field
+and each enemy's `gravity_hold`. Any rank still unlocks Singularity Mortar.
+
+After Plague Mortar evolves, Gridlock retains that same four-turn charge,
+stationary lattice, pin duration, and recharge. Each successful trap also seeds
+one extra Singularity well at the grid's center. This well lasts for the pin's
+duration and uses half the evolved weapon's current tick and detonation damage,
+including supported damage/Volley bonuses and critical hits. Its normal grid-safe
+pull continues during the pin; releasing the trap detonates the well. Normal
+Mortar bombs, their pools, and their cast timings continue independently. The
+extra well shares the existing 128-zone cap; a full pool suppresses the added
+well while preserving the passive's pin. `empowered` in the field snapshot and
+`gridlock` on the zone identify this inheritance without introducing a new weapon.
 
 ### Snake Nest lifecycle
 
@@ -114,7 +159,7 @@ There are at most 25 eggs, 30 base summoned snakes, or 60 with Hydra Brood, with
 |---|---|---|
 | Venom Shot | Serpent's Scales | Ouroboros |
 | Viper Fangs | Rapid Fire | Serpent's Gatling |
-| Plague Mortar | Graviton | Singularity Mortar |
+| Plague Mortar | Gridlock | Singularity Mortar |
 | Snake Nest | Coiled Volley | Hydra Brood |
 | Venom Nova | Toxic Expanse | Miasma |
 | Sidewinder Beam | Ravenous Maw | Consumption Beam |
@@ -164,6 +209,6 @@ The Python GameTest API uses a JSON-lines subprocess bridge to the same `Game::u
 
 The weapon oracle is generated by executing the original JavaScript classes, getters, and constants at the pinned reference commit. Its probe and fixture are checked in under `game_tests`; expected values do not come from the native formulas. Behavior assertions inspect actual spawned actors, hits, damage, expiry, absorption, splitting, and grapples. See [`GAME_TEST_API.md`](GAME_TEST_API.md) for the API and [`../README.md`](../README.md#verification-tools) for commands. Every Python run writes structured results and failure tracebacks to `artifacts/runs` or the requested JSON path; seeded hunts include their seed and action context.
 
-CTest registers the Python logic tier when Python 3.10+ is found; set `SNAKE_PYTHON_EXECUTABLE` during CMake configuration to choose an interpreter. `scripts/build.ps1 -CoreOnly -Configuration Debug` builds headless Debug targets in `build-tests`. `scripts/check-asan.ps1` configures a separate MSVC AddressSanitizer build using the installed compiler/runtime. The optional `snake_core_stress` target exercises two complete scripted 20-minute runs and a dense 1,800-enemy fixture. These checks target explicit contracts and invariants and do not prove the absence of every bug or establish game balance.
+CTest registers the Python logic tier when Python 3.10+ is found; set `SNAKE_PYTHON_EXECUTABLE` during CMake configuration to choose an interpreter. `scripts/build.ps1 -CoreOnly -Configuration Debug` builds headless Debug targets in `build-tests`. `scripts/check-asan.ps1` configures a separate MSVC AddressSanitizer build using the installed compiler/runtime. The optional `snake_core_stress` target exercises two complete scripted 30-minute runs and a dense 1,800-enemy fixture. These checks target explicit contracts and invariants and do not prove the absence of every bug or establish game balance.
 
 The native executable also exposes fixed scene captures, a simulation/render smoke test, and nest flight/hatch/brood scenes. Visual tests use the real hidden raylib game through `--test-api`, requiring a working desktop OpenGL context; the headless host initializes no graphics or audio. The separate `snake_render_benchmark` reports representative and dense render timings. Headless update timings exclude rendering, protocol I/O, and Python assertions; do not present them as full-game FPS. CI builds desktop targets and runs C++ regressions, Python logic, and seeded hunts on Windows, Linux, and macOS. GPU capture validation remains a local step.

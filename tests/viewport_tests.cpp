@@ -73,6 +73,16 @@ int main(){
             draw(app,wide,false);Capture image(wide.value);image.save("viewport-settings.png");
             app.update(FixedStep,{600,547},true);require(!app.settingsOpen,"Centered settings Cancel button missed its displayed position");
         });
+        test("evolution guide stays centered sharp and clickable at integer zoom",[&]{
+            Presentation app(catalog);fixture(app);app.codex=true;app.setViewport(1200,700);
+            app.game.owned={{catalog.find("snake_nest"),3,false,0},{catalog.find("toxic_expanse"),1,false,0}};
+            draw(app,wide,false);Capture original(wide.value);original.save("viewport-evolutions.png");
+            app.setViewport(1200,700,2);draw(app,zoomed,false,2);Capture enlarged(zoomed.value);
+            for(int y=0;y<1400;++y)for(int x=0;x<2400;++x)
+                require(same(original.at(x/2,y/2),enlarged.at(x,y)),"Evolution guide blurred or changed a source pixel at integer zoom");
+            app.update(FixedStep,{760,78},true);require(app.codex,"Expanded guide retained the old close-button hitbox");
+            app.update(FixedStep,{960,178},true);require(!app.codex,"Expanded guide close button missed its displayed position");
+        });
         test("expanded upgrade cards share hover click and keyboard geometry",[&]{
             Presentation app(catalog);fixture(app);app.setViewport(1200,700);app.game.grantXp(app.game.player.nextXp);
             require(app.game.phase==Phase::LevelUp,"Upgrade fixture did not open");

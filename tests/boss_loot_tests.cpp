@@ -34,7 +34,7 @@ int main(){
     auto test=[&](const char* name,const std::function<void()>& run){try{run();++passed;std::cout<<"PASS "<<name<<'\n';}catch(const std::exception& error){++failed;std::cerr<<"FAIL "<<name<<": "<<error.what()<<'\n';}};
     const auto content=Catalog::load(SNAKE_TEST_DATA_DIR);
     test("arena-edge boss deaths leave distinct reachable visible chests",[&]{
-        Game game(content,901);isolate(game);relocate(game,{ArenaSize-2*Tile,800});
+        Game game(content,901);isolate(game);relocate(game,{ArenaSize-4*Tile,800});
         const Vec death{ArenaSize-Tile,800};killBoss(game,death,1000);killBoss(game,death,1001);game.update(FixedStep,{});
         require(game.bossesKilled==2,"Both bosses must die through real combat.");
         std::vector<Vec> boxes;for(const auto& p:game.pickups)if(p.kind==PickupKind::Chest){
@@ -42,7 +42,7 @@ int main(){
             require(std::none_of(game.player.segments.begin(),game.player.segments.end(),[&](Vec s){return sameCell(p.position,s);}),"A chest spawned under the player body.");
             for(Vec previous:boxes)require(!sameCell(previous,p.position),"Boss chests overlap and hide each other.");boxes.push_back(p.position);
         }
-        require(boxes.size()==2 && game.chests==0 && game.chestRewards.empty(),"Adjacent drops were silently auto-opened instead of remaining visible.");
+        require(boxes.size()==2 && game.chests==0 && game.chestRewards.empty(),"Drops beyond one tile were silently auto-opened instead of remaining visible.");
     });
     test("walking over a chest grants one visible durable upgrade reward",[&]{
         Game game(content,902);isolate(game);const int definition=content.find("venom_shot");game.owned={{definition,1,false,100}};

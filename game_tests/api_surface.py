@@ -47,7 +47,7 @@ def test_reset_clears_actors_counters_and_test_settings():
     assert state["tick"] == 0 and state["seed"] == 55, state
     assert not state["owned"] and all(count == 0 for count in state["counts"].values()), state
     settings = st.configure()
-    assert settings == {"director": False, "grey_snakes": False, "freeze_player": True,
+    assert settings == {"director": False, "grey_snakes": False, "floods": False, "freeze_player": True,
                         "invulnerable": True, "auto_choose": True}, settings
 
 

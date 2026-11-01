@@ -20,7 +20,7 @@ struct Options {
     bool smoke = false;
     bool testApi = false;
     int frames = 0;
-    std::string scene, capture, data, settings;
+    std::string scene, capture, data, settings,profile;
 };
 Options parse(int argc, char** argv) {
     Options o;
@@ -34,8 +34,9 @@ Options parse(int argc, char** argv) {
         else if (arg == "--capture") o.capture = value();
         else if (arg == "--data") o.data = value();
         else if (arg == "--settings") o.settings = value();
+        else if (arg == "--profile") o.profile = value();
         else if (arg == "--help") {
-            std::cout << "Snake Survivors\n  --test-api         Serve deterministic JSONL test commands, with real native captures\n  --smoke-test       Run 300 deterministic native frames and exit\n  --scene NAME       menu, gameplay, settings, upgrades, evolutions, pause, results, nest-flight, nest-hatch, nest-brood\n  --capture PATH     Save a PNG of the rendered scene and exit\n  --frames N         Exit after N frames\n  --data DIRECTORY   Override the CSV catalog directory\n  --settings FILE    Override the persistent settings JSON file\n";
+            std::cout << "Snake Survivors\n  --test-api         Serve deterministic JSONL test commands, with real native captures\n  --smoke-test       Run 300 deterministic native frames and exit\n  --scene NAME       menu, gameplay, flood, settings, permanent, upgrades, evolutions, pause, results, nest-flight, nest-hatch, nest-brood\n  --capture PATH     Save a PNG of the rendered scene and exit\n  --frames N         Exit after N frames\n  --data DIRECTORY   Override the CSV catalog directory\n  --settings FILE    Override the persistent settings JSON file\n  --profile FILE     Override the permanent-upgrade profile (scenes/captures read only)\n";
             std::exit(0);
         } else throw std::runtime_error("Unknown argument: " + arg);
     }
@@ -106,7 +107,7 @@ struct Application {
             if(!snake::loadSettings(settingsPath,initialSettings,&settingsError) && !std::filesystem::exists(settingsPath)){
                 // Preserve the previous sound preference when upgrading an old build.
                 std::ifstream legacy(executableDirectory/"snake-survivors.save");std::string version;int kills,runs,seconds,wins;bool sound;
-                if(legacy>>version>>kills>>runs>>seconds>>wins>>sound && version=="SS1")initialSettings.audio.enabled=sound;
+                if(legacy>>version>>kills>>runs>>seconds>>wins>>sound && (version=="SS1" || version=="SS2"))initialSettings.audio.enabled=sound;
             }
         }
         SetTraceLogLevel(options.testApi?LOG_NONE:LOG_WARNING);
@@ -128,7 +129,16 @@ struct Application {
         if(!canvas.id)throw std::runtime_error("Unable to create the source framebuffer.");
         SetTextureFilter(canvas.texture,TEXTURE_FILTER_POINT);
 #endif
-        presentation=std::make_unique<snake::Presentation>(catalog,initialSettings);
+        const bool persistentProfile=!automated && options.scene.empty();
+        std::string profilePath=options.profile;
+        if(profilePath.empty() && persistentProfile){
+#ifdef __EMSCRIPTEN__
+            profilePath=snake::web::ProfilePath;
+#else
+            profilePath=(std::filesystem::path(GetApplicationDirectory())/"snake-survivors.save").string();
+#endif
+        }
+        presentation=std::make_unique<snake::Presentation>(catalog,initialSettings,profilePath,persistentProfile);
         auto& app=*presentation;
         app.displayOptions=&display;lastSaved=initialSettings;
         app.onApplySettings=[this](const snake::Settings& requested,std::string& error){

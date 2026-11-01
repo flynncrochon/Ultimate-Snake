@@ -1,8 +1,12 @@
 #pragma once
 
+#include "progression.hpp"
+#include "permanent_upgrades.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <random>
 #include <string>
 #include <vector>
@@ -12,7 +16,6 @@ constexpr int Tile = 8;
 constexpr int ArenaTiles = 200;
 constexpr float ArenaSize = float(ArenaTiles * Tile);
 constexpr float FixedStep = 1.0f / 60.0f;
-constexpr float RunDuration = 20.0f * 60.0f;
 constexpr int WeaponSlots = 4;
 constexpr int PassiveSlots = 4;
 constexpr int MaxPlayerLength = 120;
@@ -44,7 +47,8 @@ struct Catalog {
 struct OwnedUpgrade { int definition = -1, rank = 0; bool evolved = false; float cooldown = 0; };
 struct Stats {
     double damage = 1;
-    float cooldown = 1, area = 1, duration = 1, pickup = 20, crit = 0, growth = 1, range = 1, speed = 1;
+    double growth = 1, recovery = 0;
+    float cooldown = 1, area = 1, duration = 1, pickup = float(Tile), crit = 0, range = 1, speed = 1;
     int amount = 0, armor = 0;
 };
 struct WeaponSpec {
@@ -62,11 +66,15 @@ struct Player {
     float moveClock = 0, moveInterval = .12f, hp = 100, maxHp = 100, invulnerable = 0;
     // Negative when clear; otherwise simulation seconds since a blocked move.
     float collisionClock = -1;
-    int level = 1, xp = 0, nextXp = 8, length = 7;
+    int level = 1, xp = 0, nextXp = 5, length = 7;
+    double xpRemainder = 0;
 };
 constexpr double GreyMoveSeconds = .06, GreyLifetimeSeconds = 10, GreySpawnSeconds = 90;
-constexpr std::size_t GreyTrailCapacity = std::size_t(RunDuration / GreySpawnSeconds);
+constexpr double GreyFirstPressureSeconds = 10, GreyPressureSpawnSeconds = 30;
+constexpr std::size_t GreyTrailCapacity = std::size_t(RunDuration / GreyPressureSpawnSeconds);
 constexpr std::size_t GreyPathCapacity = 168; // Spawn cell plus at most 166 moves in ten seconds.
+constexpr std::size_t GreyRouteCapacity = 512;
+struct GreyRouteStep { Vec position, direction; };
 struct GreySnake {
     // Append-only, oldest cell first. Only the head moves; every visited cell
     // remains a barrier for the rest of the run, including self-crossings.
@@ -75,7 +83,7 @@ struct GreySnake {
     Vec previous, direction{0,1}, target, wallDirection, minimum, maximum;
     double age = 0, moveClock = 0;
     int wallTicks = 0;
-    bool alive = true, wall = false, settling = false;
+    bool alive = true, wall = false, settling = false, cutting = false;
     std::uint8_t id = 0;
 };
 struct GreySnakeSystem {
@@ -83,15 +91,26 @@ struct GreySnakeSystem {
     // First owner of each occupied cell. A snake may cross its own trail,
     // but keeps a one-cell gap from every other snake's permanent barriers.
     std::array<std::uint8_t,ArenaTiles*ArenaTiles> owners{};
+    // Successful grid moves only. A bounded history recognizes reused lanes
+    // and predicts the upcoming turns of a familiar circuit without a map scan.
+    std::array<GreyRouteStep,GreyRouteCapacity> route{};
+    std::size_t routeCount = 0, routeNext = 0;
     double clock = 0, nextSpawn = GreySpawnSeconds;
+    double lastMoveClock = -2;
+    int straightSteps = 0, repeatedSteps = 0;
     std::size_t barrierCount = 0;
-    bool enabled = true;
+    bool enabled = true, attemptedSpawn = false;
     void reset();
+    void recordMove(Vec position,Vec direction);
+    float predictability() const;
+    double spawnTime() const;
+    Vec predict(Vec position,Vec direction,int steps,Vec& heading) const;
     bool blocks(Vec position) const;
+    bool preservesEscape(Vec position) const;
     bool overlapsOther(Vec position,std::uint8_t owner = 0) const;
     void append(GreySnake& snake,Vec position);
 };
-enum class EnemyKind { Red, Splitter, Swift, Boss };
+enum class EnemyKind { Red, Splitter, Swift, Boss, Flood };
 constexpr float SplitBirthFlash = .04f, SplitBirthDuration = .30f;
 struct SplitBirth {
     // Grid coordinates fit in one byte. Each offspring owns a compact copy,
@@ -114,11 +133,58 @@ struct Enemy {
     float moveClock = 0, moveInterval = .4f;
     EnemyKind kind = EnemyKind::Red;
     int trailSize = 3;
+    // Zero retains the legacy reward/contact behavior for hand-built fixtures.
+    int experience = 0;
+    float contactDamage = 0;
     float slowFactor = .4f, orbitCooldown = 0;
+    float gravityHold = 0;
     bool alive = true, motionReady = false, grabbed = false, devoured = false;
     // Presentation distinguishes combat displacement from spawn/recycling.
     std::uint32_t forceSerial = 0, placementSerial = 0;
     SplitBirth splitBirth;
+};
+
+constexpr std::size_t FloodCapacity = 1536;
+constexpr float FloodRadius = 3.0f, FloodFirstSeconds = 60, FloodIntervalSeconds = 60, FloodLifetime = 90;
+struct WaterParticle {
+    Vec position, previous, velocity;
+    float foam = 0;
+    float age = 0, warning = 1.5f;
+    std::uint32_t wave = 0;
+};
+// Arriving waves join one shared pressure, cohesion and viscosity simulation.
+// Each sample keeps its own warning and lifetime. The single
+// enemy handle lets existing weapons target the nearest part of the surface.
+// All scratch storage is prepared at construction, never at first contact.
+struct FloodSystem {
+    FloodSystem();
+    ~FloodSystem();
+    FloodSystem(const FloodSystem&);
+    FloodSystem& operator=(const FloodSystem&);
+    FloodSystem(FloodSystem&&) noexcept;
+    FloodSystem& operator=(FloodSystem&&) noexcept;
+    std::vector<WaterParticle> particles;
+    Vec center, direction{1,0};
+    float age = 0, warning = 1.5f, lifetime = FloodLifetime;
+    double clock = 0, nextSpawn = FloodFirstSeconds;
+    std::uint32_t enemyId = 0, serial = 0, repulsions = 0;
+    bool enabled = true;
+    bool active() const { return !particles.empty(); }
+    bool dangerous() const { return hazardous; }
+    bool dangerous(const WaterParticle& p) const { return p.age >= p.warning && p.age < lifetime; }
+    std::size_t waveCount() const;
+    void reset();
+    bool start(Vec position,Vec heading,int count = 640,float warningSeconds = 1.5f);
+    Vec nearest(Vec from) const;
+    // Swept circle contact returns the first impact, including fast shots.
+    float contact(Vec from,Vec to,float radius) const;
+    void repel(Vec position,float radius,Vec direction,float strength);
+    bool update(float dt,const Player& player,const std::vector<Enemy>& enemies,const GreySnakeSystem& grey,Vec headStart);
+private:
+    struct Storage;
+    std::unique_ptr<Storage> storage;
+    bool hazardous = false;
+    void rebuildIndex();
 };
 struct Projectile {
     Vec position, velocity;
@@ -143,7 +209,7 @@ struct Projectile {
 struct Zone {
     Vec position; float radius = 16, life = 1, maxLife = 1; double damage = 1; float tick = 0; Pattern pattern = Pattern::Nova; bool evolved = false;
     float tickInterval = .3f, damageFactor = .38f, delay = 0, detonationDamage = 0, pullClock = 0, phase = 0, baseRadius = 0;
-    bool singleHit = false, canCrit = false, followPlayer = false;
+    bool singleHit = false, canCrit = false, followPlayer = false, gridlockSeed = false;
 };
 struct NestEgg {
     Vec start, target;
@@ -209,11 +275,19 @@ struct Particle { Vec position, velocity; float life = 0, maxLife = 1; int color
 struct DamageNumber { Vec position; int value = 0; float life = .6f; bool critical = false; };
 struct Input { Vec direction; };
 struct Event { enum Type { Shot, Hit, Kill, Hurt, Pickup, Level, Evolve, Chest, Win } type = Shot; };
+struct GravityLock {
+    Vec center, lastDirection{1,0};
+    float age = 0, duration = 0, radius = 0, cooldown = 0;
+    int rank = 0, turns = 0;
+    std::uint32_t serial = 0;
+    bool empowered = false;
+};
 
 class Game {
 public:
     explicit Game(const Catalog& catalog, std::uint32_t seed = 0x5EEDu);
-    void reset(int character = 0, std::uint32_t seed = 0x5EEDu);
+    void reset(int character = 0, std::uint32_t seed = 0x5EEDu,const PermanentUpgrades& permanent = {});
+    const PermanentUpgrades& permanentUpgrades() const { return permanent; }
     void update(float dt, const Input& input);
     bool choose(int choice);
     bool reroll();
@@ -221,6 +295,7 @@ public:
     void togglePause();
     void grantXp(int xp);
     void debugPopulate();
+    bool spawnFlood(Vec position,Vec direction,int count = 640,float warning = 1.5f);
     Stats stats() const;
     WeaponSpec weaponSpec(const OwnedUpgrade& upgrade) const;
     const EvolutionDef* evolutionFor(int definition) const;
@@ -231,6 +306,7 @@ public:
     Phase phase = Phase::Playing;
     Player player;
     GreySnakeSystem greySnakes;
+    FloodSystem flood;
     std::vector<Enemy> enemies;
     std::vector<Projectile> projectiles;
     std::vector<Zone> zones;
@@ -247,6 +323,7 @@ public:
     double cobraOverflow = 1;
     float orbitPhase = 0, shieldTimer = 0, shieldCooldown = 10;
     int shieldCharges = 0, shieldMax = 0, shieldRank = 0;
+    GravityLock graviton;
     std::vector<Pickup> pickups;
     // Small durable reward ledger: presentation can acknowledge rewards without
     // depending on a one-tick event or losing simultaneous boss chest openings.
@@ -261,6 +338,8 @@ public:
     std::vector<Event> events;
     float elapsed = 0, spawnClock = 0, bossClock = 0, shake = 0, noticeTime = 0;
     int kills = 0, gems = 0, chests = 0, rerolls = 3, banishes = 3, character = 0, bossesKilled = 0;
+    double damageDealt = 0;
+    std::uint64_t experienceDropped = 0, experienceCollected = 0;
     std::string notice;
     std::uint32_t seed = 0;
 private:
@@ -268,16 +347,22 @@ private:
     std::uint32_t nextEnemyId = 1;
     std::uint32_t nextMiniId = 1;
     std::size_t nextSnakeDeath = 0;
+    int directorMinute = 0, pendingSpawns = 0;
+    double elapsedTime = 0;
+    PermanentUpgrades permanent;
     SnakeDeath* recordSnakeDeath(const Enemy& enemy);
     void recordSnakeDeath(const MiniSnake& mini);
     SnakeDeath* recordSnakeDeath(const SnakeDeath& death);
     float random(float lo, float hi);
     void rollOffers();
     void spawnEnemy(EnemyKind kind, Vec position);
+    void updateDirector(float dt);
     void damageEnemy(Enemy& enemy, double damage, bool critical = false);
     void fire(OwnedUpgrade& upgrade, const Stats& stats);
     void collectChest();
     void moveEnemies(float dt);
+    void directFlood(float dt);
+    void updateFlood(float dt,Vec headStart);
     void placeEnemy(Enemy& enemy, Vec position, bool collapseBody = false);
     void updateGreySnakes(float dt);
     void spawnGreySnake();
@@ -287,7 +372,9 @@ private:
     void updateNests(float dt,const Stats& stats,const WeaponSpec* current);
     void updateWeaponActors(float dt,const Stats& stats,const std::array<WeaponSpec,9>& current,const std::array<bool,9>& equipped);
     void updateShield(float dt);
-    void collectExperience(int amount,float xpMultiplier);
+    void updateGraviton(float dt);
+    void triggerGraviton();
+    void collectExperience(int amount,double xpMultiplier);
     void absorbKill(Vec position,int growth,float vacuumRadius);
 };
 }

@@ -13,7 +13,7 @@ namespace {
 using Json=TestJson;
 constexpr const char* Patterns[]{"shot","homing","mortar","nest","nova","beam","ricochet","pit","lash"};
 constexpr const char* Phases[]{"playing","level_up","paused","dead","victory"};
-constexpr const char* EnemyKinds[]{"red","splitter","swift","boss"};
+constexpr const char* EnemyKinds[]{"red","splitter","swift","boss","flood"};
 constexpr const char* EventNames[]{"shot","hit","kill","hurt","pickup","level","evolve","chest","win"};
 constexpr std::uint32_t FixtureHandleBegin=1000000000u;
 std::uint32_t nextFixtureHandle(std::uint32_t value){return value==std::numeric_limits<std::uint32_t>::max()?FixtureHandleBegin:value+1;}
@@ -55,16 +55,18 @@ Json specJson(const WeaponSpec& s){
         {"tick_interval",s.tickInterval},{"turn_speed",s.turnSpeed},{"amount",s.amount},{"pierce",s.pierce},{"bounces",s.bounces},{"brood_count",s.broodCount}};
 }
 Json statsJson(const Stats& s){return {{"damage",s.damage},{"cooldown",s.cooldown},{"area",s.area},{"duration",s.duration},{"pickup",s.pickup},
-    {"crit",s.crit},{"growth",s.growth},{"range",s.range},{"speed",s.speed},{"amount",s.amount},{"armor",s.armor}};}
+    {"crit",s.crit},{"growth",s.growth},{"recovery",s.recovery},{"range",s.range},{"speed",s.speed},{"amount",s.amount},{"armor",s.armor}};}
 int definitionFor(const Catalog& catalog,std::string id){
     const std::pair<const char*,const char*> aliases[]{{"fangs","viper_fangs"},{"plague","plague_mortar"},{"sidewinder","sidewinder_beam"},
-        {"ricochet","ricochet_fang"},{"magnet","graviton"},{"atk_speed","rapid_fire"},{"crit","dead_eye"},{"gorger","ravenous_maw"},
+        {"ricochet","ricochet_fang"},{"gridlock","graviton"},{"magnet","graviton"},{"atk_speed","rapid_fire"},{"crit","dead_eye"},{"gorger","ravenous_maw"},
         {"multishot","coiled_volley"},{"blast_radius","toxic_expanse"},{"weapon_range","serpents_reach"},{"serpent_scales","serpents_scales"}};
     for(const auto& alias:aliases)if(id==alias.first)id=alias.second;
     const int found=catalog.find(id);if(found<0)throw std::invalid_argument("Unknown upgrade id: "+id);return found;
 }
 void clearActors(Game& game){
+    game.graviton={};
     game.greySnakes.reset();
+    game.flood.reset();
     game.enemies.clear();game.projectiles.clear();game.zones.clear();game.nestEggs.clear();game.miniSnakes.clear();
     game.beams.clear();game.cobraPits.clear();game.cobras.clear();game.grapples.clear();game.leviathan={};
     // Keep the source game's seeded fang parameters initialized by reset().
@@ -79,9 +81,20 @@ Json GameTestSession::reset(const Json& request){
     const auto seedValue=request.value("seed",std::uint64_t(0x5EEDu));
     if(seedValue>std::numeric_limits<std::uint32_t>::max())throw std::invalid_argument("seed must be a uint32");
     const int character=integer(request,"character",0,0,3);const bool isolated=flag(request,"isolated",true),full=flag(request,"full",false);
-    game.reset(character,std::uint32_t(seedValue));tick=0;nextHandle=FixtureHandleBegin;eventCounts.fill(0);lastTiming=Json::object();
+    PermanentUpgrades permanent;
+    if(request.contains("permanent")){
+        const auto& values=request["permanent"];if(!values.is_object())throw std::invalid_argument("permanent must be an object of upgrade ranks");
+        for(auto item=values.begin();item!=values.end();++item){
+            const auto& definitions=permanentDefinitions();
+            const auto definition=std::find_if(definitions.begin(),definitions.end(),[&](const PermanentUpgradeDef& value){return item.key()==value.id;});
+            if(definition==definitions.end())throw std::invalid_argument("Unknown permanent upgrade: "+item.key());
+            permanent.ranks[std::size_t(definition-definitions.begin())]=integer(values,item.key().c_str(),0,0,definition->maxRank);
+        }
+    }
+    game.reset(character,std::uint32_t(seedValue),permanent);tick=0;nextHandle=FixtureHandleBegin;eventCounts.fill(0);lastTiming=Json::object();
     director=!isolated;frozenPlayer=isolated;invulnerable=isolated;autoChoose=true;stop=false;
     game.greySnakes.enabled=!isolated;
+    game.flood.enabled=!isolated;
     if(isolated){clearActors(game);game.owned.clear();game.player.invulnerable=1000000;}
     return snapshot(full);
 }
@@ -93,13 +106,19 @@ Json GameTestSession::configure(const Json& request){
     const bool greyEnabled=flag(request,"grey_snakes",request.contains("director")?nextDirector:game.greySnakes.enabled);
     const float greyClock=number(request,"grey_clock",request.contains("elapsed")?elapsed:float(game.greySnakes.clock),0,RunDuration);
     const float greyNextSpawn=number(request,"grey_next_spawn",float(game.greySnakes.nextSpawn),0,RunDuration+float(GreySpawnSeconds));
+    const bool floodEnabled=flag(request,"floods",request.contains("director")?nextDirector:game.flood.enabled);
+    const float floodClock=number(request,"flood_clock",request.contains("elapsed")?elapsed:float(game.flood.clock),0,RunDuration);
+    const float floodNext=number(request,"flood_next_spawn",float(game.flood.nextSpawn),0,RunDuration+FloodIntervalSeconds);
     director=nextDirector;frozenPlayer=nextFrozen;invulnerable=nextInvulnerable;autoChoose=nextAutoChoose;
     if(request.contains("invulnerable")&&!invulnerable)game.player.invulnerable=0;
     game.elapsed=elapsed;game.bossClock=bossClock;game.spawnClock=spawnClock;
     game.greySnakes.enabled=greyEnabled;
     if(request.contains("elapsed") || request.contains("grey_clock"))game.greySnakes.clock=greyClock;
     if(request.contains("grey_next_spawn"))game.greySnakes.nextSpawn=greyNextSpawn;
-    return {{"director",director},{"grey_snakes",greyEnabled},{"freeze_player",frozenPlayer},{"invulnerable",invulnerable},{"auto_choose",autoChoose}};
+    game.flood.enabled=floodEnabled;
+    if(request.contains("elapsed") || request.contains("flood_clock"))game.flood.clock=floodClock;
+    if(request.contains("flood_next_spawn"))game.flood.nextSpawn=floodNext;
+    return {{"director",director},{"grey_snakes",greyEnabled},{"floods",floodEnabled},{"freeze_player",frozenPlayer},{"invulnerable",invulnerable},{"auto_choose",autoChoose}};
 }
 Json GameTestSession::setPlayer(const Json& request){
     Player p=game.player;
@@ -202,14 +221,26 @@ Json GameTestSession::snapshot(bool full)const{
         {"orbit_fangs",game.ouroborosActive?game.orbitFangs.size():0}};
     const auto greyActive=std::count_if(game.greySnakes.trails.begin(),game.greySnakes.trails.end(),[](const GreySnake& snake){return snake.alive;});
     counts["grey_snakes"]=greyActive;counts["grey_trails"]=game.greySnakes.trails.size()-std::size_t(greyActive);counts["grey_barriers"]=game.greySnakes.barrierCount;
+    counts["floods"]=game.flood.active()?1:0;counts["water_particles"]=game.flood.particles.size();
+    counts["water_impacts"]=0; // Retain the diagnostic key for older capture tools.
     Json result={{"api_version",1},{"tick",tick},{"seed",game.seed},{"phase",Phases[int(game.phase)]},{"elapsed",game.elapsed},
         {"kills",game.kills},{"gems",game.gems},{"chests",game.chests},{"bosses_killed",game.bossesKilled},{"counts",counts},
         {"stats",statsJson(game.stats())},{"timing",lastTiming},{"player",{{"position",vec(p.position)},{"previous",vec(p.previous)},
         {"direction",vec(p.direction)},{"queued",vec(p.queued)},{"hp",p.hp},{"max_hp",p.maxHp},{"level",p.level},{"xp",p.xp},{"next_xp",p.nextXp},
-        {"length",p.length},{"move_clock",p.moveClock},{"move_interval",p.moveInterval},{"collision_clock",p.collisionClock},{"invulnerable",p.invulnerable}}},
+        {"length",p.length},{"xp_remainder",p.xpRemainder},{"move_clock",p.moveClock},{"move_interval",p.moveInterval},{"collision_clock",p.collisionClock},{"invulnerable",p.invulnerable}}},
         {"shield",{{"charges",game.shieldCharges},{"max",game.shieldMax},{"rank",game.shieldRank},{"timer",game.shieldTimer},{"cooldown",game.shieldCooldown}}},
+        {"graviton",{{"turns",game.graviton.turns},{"rank",game.graviton.rank},{"serial",game.graviton.serial},{"center",vec(game.graviton.center)},
+            {"age",game.graviton.age},{"duration",game.graviton.duration},{"radius",game.graviton.radius},{"cooldown",game.graviton.cooldown},{"empowered",game.graviton.empowered}}},
         {"orbit_phase",game.orbitPhase},{"ouroboros_active",game.ouroborosActive},{"cobra_overflow",game.cobraOverflow},
         {"leviathan",{{"active",game.leviathan.active},{"position",vec(game.leviathan.position)},{"growth",game.leviathan.growth},{"age",game.leviathan.age},{"absorb_flash",game.leviathan.absorbFlash}}}};
+    const auto& wave=stageWave(game.elapsed);
+    result["permanent_upgrades"]=Json::object();
+    for(std::size_t i=0;i<PermanentUpgradeCount;++i)result["permanent_upgrades"][permanentDefinitions()[i].id]=game.permanentUpgrades().ranks[i];
+    result["progression"]={{"run_seconds",RunDuration},{"wave",stageMinute(game.elapsed)+1},
+        {"wave_seconds_remaining",game.elapsed>=RunDuration?0.0f:(stageMinute(game.elapsed)+1)*WaveDuration-game.elapsed},
+        {"minimum_enemies",wave.minimum},{"spawn_interval",wave.interval},{"ordinary_limit",OrdinaryEnemyLimit},
+        {"boss_waves_scheduled",game.bossClock},{"damage_dealt",game.damageDealt},
+        {"experience_dropped",game.experienceDropped},{"experience_collected",game.experienceCollected}};
     result["events"]=Json::object();for(std::size_t i=0;i<std::size(EventNames);++i)result["events"][EventNames[i]]=eventCounts[i];
     result["notice"]=game.notice;result["notice_time"]=game.noticeTime;
     result["chest_rewards"]=Json::array();
@@ -222,14 +253,22 @@ Json GameTestSession::snapshot(bool full)const{
     result["owned"]=Json::array();
     for(const auto& owned:game.owned){const auto& d=game.catalog.upgrades[std::size_t(owned.definition)];Json item={{"id",d.id},{"name",game.upgradeName(owned)},{"rank",owned.rank},{"evolved",owned.evolved},{"cooldown",owned.cooldown}};if(d.kind==UpgradeKind::Weapon)item["spec"]=specJson(game.weaponSpec(owned));result["owned"].push_back(item);}
     result["offers"]=Json::array();for(int offer:game.offers)result["offers"].push_back(offer<0?Json(nullptr):Json(game.catalog.upgrades[std::size_t(offer)].id));
-    result["grey_system"]={{"enabled",game.greySnakes.enabled},{"clock",game.greySnakes.clock},{"next_spawn",game.greySnakes.nextSpawn}};
+    result["grey_system"]={{"enabled",game.greySnakes.enabled},{"clock",game.greySnakes.clock},{"next_spawn",game.greySnakes.nextSpawn},
+        {"spawn_time",game.greySnakes.spawnTime()},{"predictability",game.greySnakes.predictability()},
+        {"straight_steps",game.greySnakes.straightSteps},{"repeated_steps",game.greySnakes.repeatedSteps},{"route_count",game.greySnakes.routeCount},
+        {"trail_capacity",GreyTrailCapacity}};
+    result["flood"]={{"enabled",game.flood.enabled},{"clock",game.flood.clock},{"next_spawn",game.flood.nextSpawn},{"serial",game.flood.serial},
+        {"age",game.flood.age},{"warning",game.flood.warning},{"lifetime",game.flood.lifetime},{"dangerous",game.flood.dangerous()},{"waves",game.flood.waveCount()},{"capacity",FloodCapacity},
+        {"center",vec(game.flood.center)},{"direction",vec(game.flood.direction)},{"enemy_id",game.flood.enemyId},{"repulsions",game.flood.repulsions}};
     if(!full)return result;
+    result["water_particles"]=Json::array();for(const auto& water:game.flood.particles)result["water_particles"].push_back({{"position",vec(water.position)},{"previous",vec(water.previous)},{"velocity",vec(water.velocity)},{"foam",water.foam},{"age",water.age},{"warning",water.warning},{"wave",water.wave}});
+    result["water_impacts"]=Json::array();
     result["grey_trails"]=Json::array();
     for(const auto& snake:game.greySnakes.trails){
         Json path=Json::array();for(std::size_t i=0;i<snake.count;++i)path.push_back(vec(snake.path[i]));
         result["grey_trails"].push_back({{"id",snake.id},{"path",path},{"previous",vec(snake.previous)},
             {"direction",vec(snake.direction)},{"target",vec(snake.target)},{"wall_direction",vec(snake.wallDirection)},
-            {"wall",snake.wall},{"wall_ticks",snake.wallTicks},{"alive",snake.alive},{"settling",snake.settling},{"age",snake.age},{"move_clock",snake.moveClock}});
+            {"wall",snake.wall},{"wall_ticks",snake.wallTicks},{"alive",snake.alive},{"settling",snake.settling},{"cutting",snake.cutting},{"age",snake.age},{"move_clock",snake.moveClock}});
     }
     result["player"]["segments"]=points(p.segments);result["player"]["previous_segments"]=points(p.previousSegments);
     result["orbit_fangs"]=game.ouroborosActive?points(game.orbitFangs):Json::array();
@@ -238,7 +277,8 @@ Json GameTestSession::snapshot(bool full)const{
         {"radius_amplitude",fang.radiusAmplitude},{"radius_frequency",fang.radiusFrequency},{"radius_phase",fang.radiusPhase},{"angle_amplitude",fang.angleAmplitude},{"angle_frequency",fang.angleFrequency},{"angle_phase",fang.anglePhase}});
     for(const char* key:{"enemies","projectiles","zones","nest_eggs","mini_snakes","beams","cobra_pits","cobras","grapples","pickups"})result[key]=Json::array();
     for(const auto& e:game.enemies)result["enemies"].push_back({{"id",e.id},{"position",vec(e.position)},{"previous",vec(e.previous)},{"direction",vec(e.direction)},{"velocity",vec(e.velocity)},
-        {"hp",e.hp},{"max_hp",e.maxHp},{"speed",e.speed},{"radius",e.radius},{"kind",EnemyKinds[int(e.kind)]},{"alive",e.alive},{"slow",e.slow},{"slow_factor",e.slowFactor},
+        {"hp",e.hp},{"max_hp",e.maxHp},{"speed",e.speed},{"radius",e.radius},{"kind",EnemyKinds[int(e.kind)]},{"alive",e.alive},{"slow",e.slow},{"slow_factor",e.slowFactor},{"gravity_hold",e.gravityHold},
+        {"experience",e.experience},{"contact_damage",e.contactDamage},
         {"move_clock",e.moveClock},{"move_interval",e.moveInterval},{"length",e.trailSize},{"trail",points(e.trail)},{"previous_trail",points(e.previousTrail)},{"grabbed",e.grabbed},{"devoured",e.devoured}});
     for(const auto& shot:game.projectiles)result["projectiles"].push_back({{"position",vec(shot.position)},{"velocity",vec(shot.velocity)},{"pattern",Patterns[int(shot.pattern)]},
         {"damage",shot.damage},{"life",shot.life},{"max_life",shot.maxLife},{"age",shot.age},{"radius",shot.radius},{"pierce",shot.pierce},{"bounces",shot.bounces},
@@ -246,7 +286,7 @@ Json GameTestSession::snapshot(bool full)const{
         {"flight_duration",shot.flightDuration},{"turn_speed",shot.turnSpeed},{"bounce_radius",shot.bounceRadius},{"damage_ramp",shot.damageRamp},{"generation",shot.generation},{"impacts",shot.impacts},{"gatling",shot.gatling},{"cobra_spit",shot.cobraSpit},{"hit_count",shot.hitCount}});
     for(const auto& z:game.zones)result["zones"].push_back({{"position",vec(z.position)},{"pattern",Patterns[int(z.pattern)]},{"radius",z.radius},{"damage",z.damage},
         {"life",z.life},{"max_life",z.maxLife},{"tick",z.tick},{"tick_interval",z.tickInterval},{"damage_factor",z.damageFactor},{"delay",z.delay},{"detonation_damage",z.detonationDamage},
-        {"evolved",z.evolved},{"single_hit",z.singleHit},{"can_crit",z.canCrit},{"follow_player",z.followPlayer}});
+        {"evolved",z.evolved},{"single_hit",z.singleHit},{"can_crit",z.canCrit},{"follow_player",z.followPlayer},{"gridlock",z.gridlockSeed}});
     for(const auto& e:game.nestEggs)result["nest_eggs"].push_back({{"start",vec(e.start)},{"target",vec(e.target)},{"age",e.age},{"flight_duration",e.flightDuration},{"hatch_delay",e.hatchDelay},{"snake_life",e.snakeLife},{"damage",e.damage},{"count",e.count},{"evolved",e.evolved},{"brood_life",e.broodLife},{"brood_damage",e.broodDamage}});
     for(const auto& m:game.miniSnakes)result["mini_snakes"].push_back({{"position",vec(m.position)},{"previous",vec(m.previous)},{"direction",vec(m.direction)},{"segments",points(m.segments)},
         {"previous_segments",points(m.previousSegments)},{"extra_segments",points(m.extraSegments)},{"previous_extra_segments",points(m.previousExtraSegments)},{"segment_count",m.segmentCount},
@@ -283,8 +323,15 @@ Json GameTestSession::validate()const{
     for(auto owner:game.greySnakes.owners)if(owner){++greyCells;if(owner>game.greySnakes.trails.size())problem("Invalid grey barrier owner");}
     if(greyActive>1 || greyCells!=game.greySnakes.barrierCount)problem("Invalid grey barrier population");
     if(game.enemies.size()>1800||game.projectiles.size()>1600||game.zones.size()>128||game.nestEggs.size()>25||game.miniSnakes.size()>60)problem("Actor capacity exceeded");
+    if(game.flood.particles.size()>FloodCapacity)problem("Flood capacity exceeded");
+    int floodHandles=0;
+    for(const auto& enemy:game.enemies)if(enemy.alive && enemy.kind==EnemyKind::Flood)++floodHandles;
+    if(floodHandles!=(game.flood.active()?1:0))problem("Flood target lifetime mismatch");
+    bool hazardous=false;
+    for(const auto& water:game.flood.particles){finite(water.position,"water");finite(water.velocity,"water velocity");if(!std::isfinite(water.foam) || water.foam<0 || water.foam>1)problem("Invalid water foam");if(!std::isfinite(water.age) || !std::isfinite(water.warning) || water.age<0 || water.warning<0 || !water.wave)problem("Invalid water lifetime");hazardous=hazardous || game.flood.dangerous(water);}
+    if(hazardous!=game.flood.dangerous())problem("Flood danger state mismatch");
     std::vector<std::uint32_t> ids;ids.reserve(game.enemies.size());
-    for(const auto& enemy:game.enemies){grid(enemy.position,"enemy");if(!std::isfinite(enemy.hp))problem("Non-finite enemy HP");if(enemy.trailSize<0||enemy.trailSize>8)problem("Invalid enemy trail size");else for(int i=0;i<enemy.trailSize;++i)grid(enemy.trail[std::size_t(i)],"enemy segment");ids.push_back(enemy.id);}
+    for(const auto& enemy:game.enemies){grid(enemy.position,"enemy");if(!std::isfinite(enemy.hp))problem("Non-finite enemy HP");if(!std::isfinite(enemy.gravityHold)||enemy.gravityHold<0||enemy.gravityHold>1.5f)problem("Invalid gravity hold");if(enemy.trailSize<0||enemy.trailSize>8)problem("Invalid enemy trail size");else for(int i=0;i<enemy.trailSize;++i)grid(enemy.trail[std::size_t(i)],"enemy segment");ids.push_back(enemy.id);}
     std::sort(ids.begin(),ids.end());if(std::adjacent_find(ids.begin(),ids.end())!=ids.end())problem("Duplicate enemy handles");
     for(const auto& p:game.projectiles){finite(p.position,"projectile");finite(p.velocity,"projectile velocity");if(!std::isfinite(p.life)||!std::isfinite(p.damage)||p.hitCount>p.hitIds.size())problem("Invalid projectile state");}
     for(const auto& mini:game.miniSnakes){grid(mini.position,"summon");for(Vec p:mini.segments)grid(p,"summon segment");if(mini.segmentCount>3)for(Vec p:mini.extraSegments)grid(p,"Hydra segment");}
@@ -296,16 +343,24 @@ Json GameTestSession::validate()const{
 Json GameTestSession::execute(const Json& request){
     if(!request.is_object())throw std::invalid_argument("Request must be a JSON object");
     const auto command=request.at("cmd").get<std::string>();
-    if(command=="hello")return {{"api_version",1},{"transport","jsonl"},{"fixed_dt",FixedStep},{"tile",Tile},{"arena_tiles",ArenaTiles},{"native_capture",bool(capture)}};
+    if(command=="hello")return {{"api_version",1},{"transport","jsonl"},{"fixed_dt",FixedStep},{"tile",Tile},{"arena_tiles",ArenaTiles},{"run_seconds",RunDuration},{"native_capture",bool(capture)}};
     if(command=="reset")return reset(request);
     if(command=="configure")return configure(request);
     if(command=="player")return setPlayer(request);
     if(command=="equip")return equip(request);
     if(command=="spawn_enemy")return spawnEnemy(request);
+    if(command=="spawn_flood"){
+        const Vec position=request.contains("position")?vector(request["position"]):Vec{number(request,"x",game.player.position.x+160,Tile,ArenaSize-Tile),number(request,"y",game.player.position.y,Tile,ArenaSize-Tile)};
+        const Vec heading=request.contains("direction")?direction(request["direction"],false):Vec{-1,0};
+        const int count=integer(request,"count",640,1,int(FloodCapacity));const float warning=number(request,"warning",1.5f,0,10);
+        if(!game.spawnFlood(position,heading,count,warning))throw std::invalid_argument("Flood sample or enemy capacity reached");
+        return {{"enemy_id",game.flood.enemyId},{"particles",game.flood.particles.size()}};
+    }
     if(command=="spawn_grey_snake"){
-        if(game.greySnakes.trails.size()>=GreyTrailCapacity)throw std::invalid_argument("Grey trail capacity is 13");
+        if(game.greySnakes.trails.size()>=GreyTrailCapacity)throw std::invalid_argument("Grey trail capacity exceeded");
         GreySnake snake;snake.id=std::uint8_t(game.greySnakes.trails.size()+1);
         snake.alive=flag(request,"alive",true);snake.wall=flag(request,"wall",false);
+        snake.cutting=flag(request,"cutting",false);
         if(snake.alive && std::any_of(game.greySnakes.trails.begin(),game.greySnakes.trails.end(),[](const GreySnake& s){return s.alive;}))throw std::invalid_argument("Only one grey snake may be active");
         const auto& path=request.at("path");
         if(!path.is_array() || path.empty() || path.size()>GreyPathCapacity)throw std::invalid_argument("Grey path requires 1..168 oldest-first grid points");
@@ -349,6 +404,7 @@ Json GameTestSession::execute(const Json& request){
     if(command=="set_enemy"){
         const auto id=request.at("id").get<std::uint32_t>();auto found=std::find_if(game.enemies.begin(),game.enemies.end(),[&](const Enemy& enemy){return enemy.id==id;});
         if(found==game.enemies.end())throw std::invalid_argument("Unknown enemy handle");
+        if(found->kind==EnemyKind::Flood)throw std::invalid_argument("Flood handles belong to the water system; use reset/clear to remove them");
         Enemy e=*found;e.hp=number(request,"hp",e.hp,0,1e12f);e.maxHp=std::max(e.maxHp,e.hp);e.speed=number(request,"speed",e.speed,0,10000);e.alive=flag(request,"alive",e.alive);
         if(request.contains("position")||request.contains("x")||request.contains("y")){
             e.position=gridPosition(request.contains("position")?vector(request["position"]):Vec{number(request,"x",e.position.x),number(request,"y",e.position.y)});

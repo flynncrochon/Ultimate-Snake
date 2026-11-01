@@ -125,8 +125,9 @@ class Game:
                 raise GameTestError(f"{cmd}: {response.get('error', response)}")
             return response["result"]
 
-    def reset(self, seed=0x5EED, character=0, *, isolated=True):
-        return self.command("reset", seed=seed, character=character, isolated=isolated)
+    def reset(self, seed=0x5EED, character=0, *, isolated=True, permanent=None):
+        inherited={} if permanent is None else {"permanent": permanent}
+        return self.command("reset", seed=seed, character=character, isolated=isolated, **inherited)
 
     def clear(self, *, owned=True):
         return self.command("clear", owned=owned)
@@ -149,6 +150,9 @@ class Game:
         if y is not None:
             fields["y"] = y
         return self.command("spawn_enemy", hp=hp, speed=speed, kind=kind, **fields)
+
+    def spawn_flood(self, x, y, *, direction=(-1, 0), count=640, warning=1.5):
+        return self.command("spawn_flood", x=x, y=y, direction=list(direction), count=count, warning=warning)
 
     def spawn_enemies(self, enemies):
         return self.command("spawn_enemies", enemies=list(enemies))
@@ -296,7 +300,7 @@ def _forward(name):
     return call
 
 
-for _name in ("reset", "clear", "configure", "player", "equip", "unequip", "spawn_enemy", "spawn_enemies", "spawn_grey_snake", "spawn_pickup",
+for _name in ("reset", "clear", "configure", "player", "equip", "unequip", "spawn_enemy", "spawn_enemies", "spawn_grey_snake", "spawn_flood", "spawn_pickup",
               "set_enemy", "enemy", "step", "snapshot", "catalog", "invariants", "capture", "benchmark",
               "pause", "choose", "reroll", "banish", "grant_xp", "wait_until", "command"):
     globals()[_name] = _forward(_name)

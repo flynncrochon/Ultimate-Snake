@@ -69,6 +69,14 @@ effects read the configured values. Range scales specification-based target
 acquisition; orbit geometry and Ancient's growing laser range retain their
 separate formulas below.
 
+Gridlock is a native passive replacing Graviton's pickup-radius role. With
+Singularity Mortar owned, each of its normal four-turn pins also seeds one
+additional well at the same rooted grid center. The extra well retains the
+pin's radius/lifetime, uses half of current evolved tick/detonation damage, and
+shares the existing well pull, critical, and 128-zone limits. Normal Mortar
+bombs and their wells continue independently. This is an intentional native
+evolution synergy; it does not alter the original reference values above.
+
 Replacing a weapon also retains offensive investment that the base could use.
 Let `A=1+Volley`, `C=Cooldown`, `T=Duration`, and
 `N=max(0,floor((T−1)/.25+.0001))`, using the resolved player stats including

@@ -1,15 +1,30 @@
-# Boss loot contract
+# Ground drops and boss loot
+
+XP fruit, hearts, and chests land on in-bounds grid cells and remain stationary.
+Starting fruit and the showcase scene use the same grid placement. The head
+collects drops within one tile (8 simulation units), including the exact boundary.
+On the grid this includes the head's cell and its four cardinal neighbors;
+diagonally adjacent cells are outside the radius. Body and tail contact do not
+collect loot. Gridlock replaces Graviton's pickup-range bonus with a turn-charged
+gravity trap and remains a Singularity Mortar catalyst. No passive
+extends the one-tile ground pickup range. Weapon-specific devours and Consumption Beam's
+fruit vacuum preserve their separate weapon contracts.
+
+Each collected XP fruit grows the tail by its raw XP value. Hearts add one
+segment even at full health, and every chest reward adds one segment, including
+merged chest quantities. Growth is capped at 120 segments and unfolds along the
+existing movement history instead of moving the tail immediately. Healing,
+XP multipliers, and chest rewards are still resolved independently of length.
 
 Every defeated boss preserves one chest reward. The dropped box occupies the
 nearest free in-bounds grid cell to the death location, avoiding the player's
 head/body and other chest cells. At the pickup storage limit, rewards merge into
 an existing chest quantity rather than disappearing. Chests do not expire or
-drift with XP attraction.
+drift.
 
-The head collects a box by crossing within six simulation units of its center.
-Collection sweeps the full head path of an update, so fast movement or a long frame
-cannot skip a box between its starting and ending cells. A box in the adjacent
-grid cell remains visible until the head actually reaches it.
+Collection sweeps the full head path of an update for every drop kind, so fast
+movement cannot skip a drop between its starting and ending cells. A chest in
+an adjacent cardinal grid cell is collected; boxes farther away remain visible.
 
 Opening a chest first evolves an eligible maxed weapon whose paired passive is
 owned. Otherwise it grants a rank to an eligible owned upgrade. A complete build

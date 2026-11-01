@@ -1,5 +1,124 @@
 # Validation results
 
+## Permanent upgrades, 1 November 2026
+
+All 18 Release headless, 31 Release desktop and 18 headless AddressSanitizer
+CTest targets pass. The permanent suites cover prices/refunds, save migration,
+atomic-write failure and retry, bounded mailbox shutdown, exact inherited stats,
+fractional XP, pause/death behavior, keyboard/mouse purchases and once-only run
+banking. The pinned Emscripten 4.0.23 web build also compiles successfully.
+
+Five full-quality combat scenes match the pre-upgrade executable with zero
+changed pixels. Zero-versus-maximum permanent bonuses also match every pixel of
+an unarmed gameplay fixture, including the existing five-heart HUD. Shop,
+gameplay, results and failure captures were opened for review. Both complete
+30-minute combat endurance scenarios pass with maximum permanent bonuses.
+
+Matched 600-frame native profile comparisons, first-use measurements, bounded
+save-system details and the limits of these checks are recorded in
+[Permanent upgrades](PERMANENT_UPGRADES.md#verification). Raw reports are beneath
+`artifacts/permanent`; native UI captures are beneath
+`artifacts/gametest/permanent`. These observations do not establish human
+survival balance or universal hitch-free play.
+
+## Minimal evolution guide revision, 1 November 2026
+
+The guide now shows compact grayscale recipe tiles with native icons, names,
+weapon/passive rank counts and a small completion tick. Heading/footer text,
+the evolved total, status labels, colored UI accents, progress bars and divider
+lines have been removed. The borderless panel is 744x308 source pixels; the
+close control sits just above it. All nine recipes remain visible.
+
+The four focused native suites pass (28 groups). Coverage checks real count
+glyphs, rank-one passive requirements, neutral tile colors, cleared status
+space, modal input, centered closing and exact 2x source-pixel replication.
+Reviewed default and mixed-state native captures are under
+`artifacts/evolution-minimal`. Five full-quality combat captures retain zero
+changed pixels against this revision's fresh baseline.
+
+Matched Release guide workloads measure 1,200 frames after 60 warmup frames,
+including presentation. Actor-state checksums match in all six workloads.
+
+| Workload with guide | Before mean / p99 / worst (ms) | After mean / p99 / worst (ms) |
+|---|---:|---:|
+| Dense: 1,800 enemies, 1,600 projectiles, 64 zones, 60 summons | 0.9700 / 1.4261 / 1.9421 | 0.9019 / 1.1723 / 1.3239 |
+| Moving combat: 1,800 enemies | 0.8041 / 1.6991 / 2.2436 | 0.7488 / 1.3648 / 1.7239 |
+| Render-only overload: 10,000 enemies | 2.5114 / 3.4327 / 5.7003 | 2.5249 / 3.5441 / 5.5496 |
+
+Dense first-submission/warmup-worst times were 1.3107/1.3364 ms before and
+1.1868/1.1868 ms after. The initial smaller scene's first submission was
+0.5072/0.4315 ms before/after. No sampled frame exceeded 16.67 ms; the
+after-run maximum across all six workloads was 5.5496 ms. Measurements follow
+resource preparation, exclude audio playback, vary with system load, and do
+not establish cold OS/driver-cache behavior or hitch-free play on other
+machines. Raw reports are `artifacts/evolution-minimal/codex-{before,after}.jsonl`.
+
+Ownership emphasis follow-up: weapons with at least one rank now have a subtly
+lighter grayscale tile, brighter names/counts and a small neutral marker. A
+passive alone does not activate that recipe's weapon styling. The four focused
+native suites pass, including partial-rank/passive-only fixtures and exact 2x
+replication of the marker. Reviewed captures change 75,003 pixels, all within
+the guide; the five full-quality combat scenes still match exactly.
+
+Fresh matched 1,200-frame dense-guide mean/p99/worst times were
+0.9086/1.2413/1.7414 ms before and 0.9036/1.2195/1.6441 ms after. Dense first
+submission and warmup worst were 1.1827 ms before and 1.1917 ms after. All six
+workloads retain their actor-state checksums; none exceeded 16.67 ms, with a
+3.7808 ms after-run maximum including the 10,000-enemy overload. The measurement
+limits above apply. Reports and captures are under `artifacts/evolution-owned`.
+
+## Initial evolution guide redesign, 1 November 2026
+
+The evolution guide uses a borderless charcoal panel, neutral recipe headings,
+segmented weapon-rank progress, explicit passive ownership, and mint readiness
+and completion states. All nine recipes remain visible at 800x500 with the
+existing native icons and unchanged Pixel Operator 8 font. The guide now
+consumes clicks and dismissal keys before covered upgrade or character cards
+can act on them; its close button follows the centered viewport.
+
+Four focused native CTest suites pass (28 groups), including recipe text fit,
+missing/rank-one passives, evolved states, modal input, and an exact comparison
+of every source pixel at 2x integer zoom. All 27 native evolution functionality
+cases pass. Matched captures of five full-quality combat scenes have zero
+changed pixels. Default, unowned, mixed-state and expanded guide captures were
+opened for visual review.
+
+Release timings use the same 1,200 measured frames after 60 warmup frames,
+including presentation and full-quality combat beneath the guide. The dense
+fixture retains 1,800 enemies, 1,600 projectiles, 64 zones and 60 summons.
+
+| Workload | Before mean / p99 / worst (ms) | After mean / p99 / worst (ms) |
+|---|---:|---:|
+| Dense scene with evolution guide | 0.9388 / 1.3300 / 1.6382 | 0.9563 / 1.4239 / 2.5830 |
+| Moving combat with evolution guide | 0.7805 / 1.5260 / 2.0247 | 0.8205 / 1.6167 / 2.3145 |
+| Dense scene with guide closed | 0.8791 / 1.1828 / 1.4650 | 0.8786 / 1.1649 / 1.3400 |
+
+The guide's first submitted frame measured 0.5034/0.4567 ms before/after;
+its dense first submission measured 1.2399/1.2825 ms. Across all six guide
+workloads, including a 10,000-enemy render-only overload, no sampled frame
+exceeded 16.67 ms; the after-run maximum was 4.3245 ms. These local wall times
+exclude resource preparation and audio playback. First submission follows
+resource preparation, rather than a cold OS/driver-cache test, and small
+differences do not establish a performance gain or hitch-free play elsewhere.
+Raw timings, pixel comparisons and native captures are under
+`artifacts/evolution-redesign`; state and zoom captures are under
+`artifacts/gametest`. Reproduce guide timings with
+`build/bin/snake_render_benchmark.exe 1200 --codex`.
+
+## Progression update, 1 November 2026
+
+The 30-minute progression adaptation passes all 17 headless CTest targets
+(including 198 Python logic checks), 136 native progression/weapon checks,
+and focused native raster, text and presentation checks. Native wave captures
+were opened for review. Twelve contact-immune collection runs reached victory;
+twelve contact-enabled runs completed without a victory. These scripted routes
+do not establish human survival balance. The C++ stress host passes both full
+30-minute combat runs, the matched 1,800-enemy dense fixture, and the current
+overlapping flood lifecycle. See [research, measurements and limits](PROGRESSION.md).
+
+The entries below retain their original dates and workloads; older 20-minute
+timings must not be treated as measurements of the current stage.
+
 Validated locally on 26 October 2026, Windows x64, MSVC 14.51, raylib 5.5.
 The JavaScript reference is commit `b6cb72e66eebc1291d57efe63ebbe93ec602e863`.
 

@@ -18,7 +18,8 @@ Sidewinder Beam, Ricochet Fang, Cobra Pit, Tongue Lash, Graviton, Rapid Fire,
 Dead Eye, Ravenous Maw, Chronofield, Coiled Volley, Toxic Expanse, Serpent's
 Reach, Serpent's Scales, Ouroboros, Serpent's Gatling, Singularity Mortar,
 Hydra Brood, Miasma, Consumption Beam, Shatter Fang, Ancient Brood Pit,
-Serpent's Reckoning.
+Serpent's Reckoning. Column 9 is now used by **Gridlock**, the turn-charged
+gravity trap replacing Graviton; its original gravity-coil artwork is retained.
 
 ## Application icon
 

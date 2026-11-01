@@ -234,7 +234,8 @@ int main() {
             game.pickups.push_back({game.player.position,3,snake::PickupKind::Experience});
             game.update(snake::FixedStep, {});
             require(game.player.length == 10 && game.gems == 3, "XP fruit failed to grow by its raw value.");
-            require(game.player.xp + (game.player.level > 1 ? 8 : 0) == int(std::round(3*(1+.25f*mawRank))), "Ravenous Maw lost its XP bonus.");
+            require(game.player.xp + (game.player.level > 1 ? 5 : 0) == int(std::floor(3*(1+.25f*mawRank))), "Ravenous Maw lost its whole XP bonus.");
+            require(near(float(game.player.xpRemainder),3*(1+.25f*mawRank)-std::floor(3*(1+.25f*mawRank))), "Fractional XP was not retained.");
             require((game.stats().damage > 1.15) == bool(mawRank), "Ravenous Maw lost its direct damage bonus.");
             if (game.phase == snake::Phase::LevelUp) require(game.choose(0), "Ravenous XP level-up could not be selected.");
             require(game.player.length == 10, "Choosing a Ravenous XP level-up added length.");
@@ -245,7 +246,7 @@ int main() {
             game.pickups.push_back({game.player.position,20,snake::PickupKind::Heart});
             game.pickups.push_back({game.player.position,1,snake::PickupKind::Chest});
             game.update(snake::FixedStep, {});
-            require(game.player.length == 11, "Healing or chest rewards incorrectly grew the snake.");
+            require(game.player.length == 13, "Heart and chest pickups failed to grow the snake once each.");
         }
     });
 

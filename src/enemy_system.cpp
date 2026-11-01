@@ -63,6 +63,7 @@ void Game::placeEnemy(Enemy& enemy, Vec position, bool collapseBody) {
 void Game::moveEnemies(float dt) {
     for (Enemy& enemy : enemies) {
         if (!enemy.alive) continue;
+        if (enemy.kind==EnemyKind::Flood) continue;
         if(enemy.splitBirth.count){
             // Retain the endpoint for the renderer's one-tick interpolation
             // interval, so high-refresh frames finish the same color and pose.
@@ -74,6 +75,8 @@ void Game::moveEnemies(float dt) {
         enemy.hitFlash = std::max(0.0f, enemy.hitFlash - dt);
         enemy.slow = std::max(0.0f, enemy.slow - dt);
         enemy.orbitCooldown = std::max(0.0f, enemy.orbitCooldown - dt);
+        const float heldTime=std::min(dt,enemy.gravityHold);
+        enemy.gravityHold=std::max(0.0f,enemy.gravityHold-dt);
         if(enemy.grabbed){enemy.velocity={};continue;}
 
         // Recycling is a grid relocation, not a long interpolated trip through
@@ -99,7 +102,11 @@ void Game::moveEnemies(float dt) {
         if (std::isfinite(enemy.moveInterval) && enemy.moveInterval > 0 && enemy.moveInterval != interval)
             enemy.moveClock = std::clamp(enemy.moveClock / enemy.moveInterval, 0.0f, 1.0f) * interval;
         enemy.moveInterval = interval;
-        enemy.moveClock += dt;
+        // Preserve the exact in-cell movement phase through Gridlock. Releasing
+        // a target cannot snap it forward or make up the suspended movement.
+        const float movementDt=dt-heldTime;
+        if(movementDt<=.000001f){enemy.velocity={};continue;}
+        enemy.moveClock += movementDt;
         enemy.velocity = {enemy.direction.x * effectiveSpeed, enemy.direction.y * effectiveSpeed};
 
         while (enemy.moveClock >= interval) {

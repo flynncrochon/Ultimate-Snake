@@ -153,7 +153,8 @@ int main() {
         game.owned = {{rapid, catalog.upgrades[rapid].maxRank, false, 0}, {graviton, 2, false, 0}, {volley, 2, false, 0}};
         const auto enhanced = game.stats();
         require(enhanced.cooldown > 0 && enhanced.cooldown < baseline.cooldown, "Rapid Fire does not reduce cooldown safely.");
-        require(enhanced.pickup > baseline.pickup, "Graviton does not increase pickup radius.");
+        require(enhanced.armor == baseline.armor, "Gridlock unexpectedly granted contact armor.");
+        require(near(enhanced.pickup, float(snake::Tile)) && near(enhanced.pickup, baseline.pickup), "Gridlock bypassed the one-tile pickup limit.");
         require(enhanced.amount > baseline.amount, "Coiled Volley does not add projectiles.");
         require(near(enhanced.damage, baseline.damage), "Unrelated bonus changed damage.");
     });
@@ -193,6 +194,7 @@ int main() {
 
     test("same seed and inputs reproduce simulation state", [&] {
         snake::Game a(catalog, 0xCAFE), b(catalog, 0xCAFE);
+        a.greySnakes.enabled=b.greySnakes.enabled=false;
         a.player.invulnerable = b.player.invulnerable = 10000;
         constexpr snake::Vec directions[]{{1,0},{0,1},{-1,0},{0,-1}};
         for (int frame = 0; frame < 1800; ++frame) {
@@ -205,7 +207,7 @@ int main() {
             for (std::size_t i = 0; i < a.enemies.size(); ++i)
                 require(near(a.enemies[i].position.x, b.enemies[i].position.x) && near(a.enemies[i].position.y, b.enemies[i].position.y) && near(a.enemies[i].hp, b.enemies[i].hp), "Seeded enemy state diverged.");
         }
-        require(a.phase != snake::Phase::Dead && a.elapsed > 29.9f, "Determinism scenario ended before all thirty seconds were exercised.");
+        require(a.phase != snake::Phase::Dead && a.elapsed > 29.9f, "Determinism scenario ended early: elapsed="+std::to_string(a.elapsed)+", phase="+std::to_string(int(a.phase))+", notice="+a.notice);
     });
 
     test("every base and evolved weapon delivers damage in a dense encounter", [&] {

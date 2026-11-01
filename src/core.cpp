@@ -142,13 +142,26 @@ int Catalog::find(const std::string& id) const {
 
 Game::Game(const Catalog& content,std::uint32_t runSeed):catalog(content) { reset(0,runSeed); }
 float Game::random(float lo,float hi) { return lo+(hi-lo)*(float(rng()>>8)*(1.0f/16777216.0f)); }
-void Game::reset(int selected,std::uint32_t runSeed) {
+void Game::reset(int selected,std::uint32_t runSeed,const PermanentUpgrades& inherited) {
     character=std::clamp(selected,0,3);seed=runSeed;rng.seed(seed);nextEnemyId=1;nextMiniId=1;
     phase=Phase::Playing;player=Player{};elapsed=spawnClock=bossClock=shake=noticeTime=0;kills=gems=chests=bossesKilled=0;rerolls=banishes=3;notice.clear();chestRewards.clear();
+    permanent=inherited;permanent.sanitize();
+    constexpr double health[]{100,110,121,133.1};
+    player.hp=player.maxHp=float(health[permanent.rank(PermanentUpgrade::Vitality)]);
+    rerolls+=2*permanent.rank(PermanentUpgrade::Reroll);banishes+=2*permanent.rank(PermanentUpgrade::Banish);
+    directorMinute=pendingSpawns=0;
+    elapsedTime=0;
+    damageDealt=0;experienceDropped=experienceCollected=0;
     enemies.clear();projectiles.clear();zones.clear();nestEggs.clear();miniSnakes.clear();beams.clear();cobraPits.clear();cobras.clear();grapples.clear();leviathan={};cobraOverflow=1;orbitPhase=0;ouroborosActive=false;shieldTimer=0;shieldCharges=shieldMax=shieldRank=0;shieldCooldown=10;pickups.clear();particles.clear();damageNumbers.clear();owned.clear();banished.clear();events.clear();offers.fill(-1);
-    enemies.reserve(EnemyCap);projectiles.reserve(ProjectileCap);zones.reserve(128);pickups.reserve(PickupCap+3);particles.reserve(1800);damageNumbers.reserve(180);owned.reserve(8);banished.reserve(catalog.upgrades.size());events.reserve(128);
+    enemies.reserve(EnemyCap);projectiles.reserve(ProjectileCap);zones.reserve(128);pickups.reserve(PickupCap+3);particles.reserve(1800);damageNumbers.reserve(180);owned.reserve(8);banished.reserve(catalog.upgrades.size());
+    // A first-use gravity detonation can defeat the entire enemy pool at once.
+    // Preserve every kill event without growing this vector during combat.
+    events.reserve(EnemyCap+128);
+    notice.reserve(128);
     snakeDeaths.clear();snakeDeaths.reserve(SnakeDeathCapacity);nextSnakeDeath=0;playerDied=false;
     greySnakes.reset();greySnakes.enabled=true;
+    flood.reset();flood.enabled=true;
+    graviton={};
     player.segments.reserve(128);player.previousSegments.reserve(128);chestRewards.reserve(32);
     nestEggs.reserve(25);miniSnakes.reserve(60);beams.reserve(32);cobraPits.reserve(25);cobras.reserve(30);grapples.reserve(16);
     for(auto& fang:orbitFangStates){fang.angle=random(0,2*Pi);fang.orbit=random(4.5f,9.5f);fang.speed=random(4,8);fang.size=random(.55f,1);fang.radiusAmplitude=random(.3f,1);fang.radiusFrequency=random(1,3);fang.radiusPhase=random(0,2*Pi);fang.angleAmplitude=random(.03f,.12f);fang.angleFrequency=random(.8f,2.5f);fang.anglePhase=random(0,2*Pi);}
@@ -159,11 +172,13 @@ void Game::reset(int selected,std::uint32_t runSeed) {
     if(starter<0) for(int i=0;i<static_cast<int>(catalog.upgrades.size());++i) if(catalog.upgrades[i].kind==UpgradeKind::Weapon) {starter=i;break;}
     if(starter<0) throw std::runtime_error("Content catalog must contain at least one weapon");
     owned.push_back({starter,1,false,.1f});
-    for(int i=0;i<24;++i) {const float a=random(0,Pi*2),r=random(16,130);pickups.push_back({add(player.position,{std::cos(a)*r,std::sin(a)*r}),1,PickupKind::Experience});}
+    for(int i=0;i<24;++i) {const float a=random(0,Pi*2),r=random(16,130);pickups.push_back({gridPosition(add(player.position,{std::cos(a)*r,std::sin(a)*r})),1,PickupKind::Experience});}
     for(int i=0;i<10;++i) {const float a=random(0,Pi*2),r=random(105,170);spawnEnemy(EnemyKind::Red,add(player.position,{std::cos(a)*r,std::sin(a)*r}));}
 }
 Stats Game::stats() const {
-    std::array<float,static_cast<int>(Stat::Count)> sums{};float cooldownProduct=1;double damageBonus=0;
+    std::array<float,static_cast<int>(Stat::Count)> sums{};
+    float cooldownProduct=1-.025f*permanent.rank(PermanentUpgrade::Cooldown);
+    double damageBonus=.05*permanent.rank(PermanentUpgrade::Might);
     for(const auto& own:owned)if(own.definition>=0 && own.definition<int(catalog.upgrades.size()))for(const auto& m:catalog.upgrades[std::size_t(own.definition)].modifiers){
         if(m.stat==Stat::Cooldown)cooldownProduct*=float(std::pow(std::max(.01,1+m.perRank),own.rank));
         else if(m.stat==Stat::Damage && catalog.upgrades[std::size_t(own.definition)].id=="ravenous_maw")damageBonus+=(m.perRank*100+double(std::max(0,own.rank-1))*(40.0/7))/100;
@@ -175,8 +190,15 @@ Stats Game::stats() const {
     s.cooldown=std::clamp(cooldownProduct,.025f,3.0f)*(character==1?.9f:1.0f);
     s.area=std::clamp(1+v(Stat::Area),.2f,5.0f)*(character==2?1.15f:1.0f);
     s.duration=std::clamp(1+v(Stat::Duration),.2f,6.0f)*(character==3?1.2f:1.0f);
-    s.pickup=std::clamp(20+v(Stat::Pickup),4.0f,180.0f);s.crit=std::clamp(v(Stat::Crit),0.0f,1.0f);s.growth=std::clamp(1+v(Stat::Growth),.1f,5.0f);s.range=std::clamp(1+v(Stat::Range),.2f,4.0f);s.speed=std::clamp(1+v(Stat::Speed),.5f,2.0f);
-    s.amount=std::clamp(int(std::round(v(Stat::Amount))),0,8);s.armor=std::clamp(int(std::round(v(Stat::Armor))),0,24);return s;
+    // Ground loot always requires the head to come within one tile, including
+    // with legacy pickup modifiers. Weapon devours use their own source rules.
+    s.pickup=float(Tile);s.crit=std::clamp(v(Stat::Crit),0.0f,1.0f);
+    s.growth=std::clamp(1.0+v(Stat::Growth)+.03*permanent.rank(PermanentUpgrade::Growth),.1,5.0);
+    s.recovery=.1*permanent.rank(PermanentUpgrade::Recovery);
+    s.range=std::clamp(1+v(Stat::Range),.2f,4.0f);s.speed=std::clamp(1+v(Stat::Speed),.5f,2.0f);
+    s.growth+=breakpointGrowth(player.level);
+    s.amount=std::clamp(int(std::round(v(Stat::Amount))),0,8);
+    s.armor=std::clamp(int(std::round(v(Stat::Armor)))+permanent.rank(PermanentUpgrade::Armor),0,24);return s;
 }
 const EvolutionDef* Game::evolutionFor(int definition) const {
     if(definition<0 || definition>=static_cast<int>(catalog.upgrades.size())) return nullptr;
@@ -208,17 +230,24 @@ void Game::rollOffers() {
 }
 void Game::grantXp(int amount) {
     if(amount<=0 || phase==Phase::Dead || phase==Phase::Victory) return;
-    player.xp+=amount;
+    player.xp=int(std::min(static_cast<long long>(player.xp)+amount,static_cast<long long>(std::numeric_limits<int>::max())));
     if(phase!=Phase::LevelUp && player.xp>=player.nextXp) {
-        player.xp-=player.nextXp;++player.level;player.nextXp=8+player.level*4;
+        player.xp-=player.nextXp;++player.level;player.nextXp=experienceForLevel(player.level);
         phase=Phase::LevelUp;rollOffers();events.push_back({Event::Level});
     }
 }
-void Game::collectExperience(int amount,float xpMultiplier) {
+void Game::collectExperience(int amount,double xpMultiplier) {
     // Length follows raw fruit value. XP bonuses and queued level-ups must not
     // add extra growth; new segments unfold along the existing movement path.
     player.length=std::min(MaxPlayerLength,player.length+std::min(amount,MaxPlayerLength));
-    gems+=amount;grantXp(std::max(1,int(std::round(amount*xpMultiplier))));
+    // Preserve fractional Growth instead of rounding every one-point fruit.
+    // This makes small permanent bonuses meaningful and batch collection fair.
+    gems+=amount;
+    experienceCollected+=std::uint64_t(amount);
+    const double experience=double(amount)*xpMultiplier+player.xpRemainder;
+    const int whole=int(std::min(std::floor(experience+1e-9),double(std::numeric_limits<int>::max())));
+    player.xpRemainder=std::max(0.0,experience-whole);
+    grantXp(whole);
 }
 bool Game::choose(int choice) {
     if(phase!=Phase::LevelUp || choice<0 || choice>=3) return false;
@@ -243,27 +272,33 @@ bool Game::banish(int choice) {
 void Game::togglePause() {if(phase==Phase::Playing) phase=Phase::Paused;else if(phase==Phase::Paused) phase=Phase::Playing;}
 void Game::spawnEnemy(EnemyKind kind,Vec position) {
     if(enemies.size()>=EnemyCap) return;Enemy e;e.id=nextEnemyId++;e.kind=kind;
-    const float t=std::clamp(elapsed/RunDuration,0.0f,1.0f);const float normalHp=(1+std::floor(t*26))*100+player.level*10;
-    e.hp=e.maxHp=kind==EnemyKind::Boss?5000+player.level*10:kind==EnemyKind::Splitter?600+player.level*10:kind==EnemyKind::Swift?normalHp*.6f:normalHp;
-    e.speed=(kind==EnemyKind::Swift?40:kind==EnemyKind::Boss?15:kind==EnemyKind::Splitter?17:19)+std::min(14.0f,elapsed/65);
+    const auto profile=stageEnemy(kind,elapsed,player.level);
+    e.hp=e.maxHp=profile.health;e.speed=profile.speed;e.experience=profile.experience;e.contactDamage=profile.damage;
     e.radius=kind==EnemyKind::Boss?7.0f:3.5f;e.trailSize=kind==EnemyKind::Boss?8:kind==EnemyKind::Splitter?5:3;placeEnemy(e,position,true);enemies.push_back(e);
 }
 void Game::damageEnemy(Enemy& e,double damage,bool critical) {
-    if(!e.alive || e.grabbed || damage<=0) return;e.hp-=damage;e.hitFlash=.09f;
+    if(!e.alive || e.grabbed || damage<=0) return;
+    if(e.kind==EnemyKind::Flood){
+        flood.repel(e.position,18,sub(e.position,player.position),50+float(std::min(60.0,damage*.15)));
+        if(events.size()<100)events.push_back({Event::Hit});return;
+    }
+    damageDealt+=std::min(e.hp,damage);
+    e.hp-=damage;e.hitFlash=.09f;
     if(damageNumbers.size()<150) damageNumbers.push_back({e.position,std::max(1,int(std::round(damage))),.6f,critical});
     if(events.size()<100) events.push_back({Event::Hit});
     if(e.hp>0) return;e.alive=false;++kills;events.push_back({Event::Kill});
     // Keep the death notification before dead enemies are compacted. A
     // Consumption target can be finished by any equipped weapon.
     for(auto& beam:beams)if(beam.evolved && !beam.ancient && beam.target==e.id){beam.pendingAbsorb=true;beam.position=e.position;beam.target=0;}
-    const int value=e.kind==EnemyKind::Boss?30:e.kind==EnemyKind::Splitter?3:1;
-    if(!e.devoured && pickups.size()<PickupCap) pickups.push_back({e.position,value,PickupKind::Experience});
+    const int value=e.experience>0?e.experience:e.kind==EnemyKind::Boss?30:e.kind==EnemyKind::Splitter?3:1;
+    if(!e.devoured)experienceDropped+=std::uint64_t(value);
+    if(!e.devoured && pickups.size()<PickupCap) pickups.push_back({gridPosition(e.position),value,PickupKind::Experience});
     else if(!e.devoured) {
         auto aggregate=std::find_if(pickups.begin(),pickups.end(),[](const Pickup& p){return p.kind==PickupKind::Experience;});
         if(aggregate!=pickups.end()) aggregate->value+=value;
         // Reserve one aggregate XP entry beyond the normal pool and two boss
         // chest slots. Heart healing and chest values must never absorb XP.
-        else pickups.push_back({e.position,value,PickupKind::Experience});
+        else pickups.push_back({gridPosition(e.position),value,PickupKind::Experience});
     }
     if(e.kind==EnemyKind::Boss) {
         ++bossesKilled;
@@ -295,7 +330,7 @@ void Game::damageEnemy(Enemy& e,double damage,bool critical) {
         }
         notice="BOSS DEFEATED - CHEST DROPPED";noticeTime=4;shake=2;
     }
-    else if(random(0,1)<.025f && pickups.size()<PickupCap) pickups.push_back({add(e.position,{4,0}),20,PickupKind::Heart});
+    else if(random(0,1)<.025f && pickups.size()<PickupCap) pickups.push_back({gridPosition(add(e.position,{4,0})),20,PickupKind::Heart});
     for(int i=0;i<5 && particles.size()<1600;++i) {const float a=random(0,2*Pi),speed=random(8,35);particles.push_back({e.position,{std::cos(a)*speed,std::sin(a)*speed},.35f,.35f,e.kind==EnemyKind::Boss?3:e.kind==EnemyKind::Splitter?2:1});particles.back().snakeDeath=true;}
 }
 
@@ -305,7 +340,7 @@ SnakeDeath* Game::recordSnakeDeath(const SnakeDeath& death) {
 }
 SnakeDeath* Game::recordSnakeDeath(const Enemy& enemy) {
     // Devoured victims belong to the consuming weapon's animation.
-    if(enemy.devoured)return nullptr;
+    if(enemy.devoured || enemy.kind==EnemyKind::Flood)return nullptr;
     SnakeDeath death;death.id=enemy.id;death.kind=SnakeDeathKind(int(enemy.kind));
     death.forceSerial=enemy.forceSerial;death.placementSerial=enemy.placementSerial;
     death.count=std::uint8_t(std::clamp(enemy.trailSize,0,8)+1);
@@ -358,12 +393,19 @@ void Game::collectChest() {
 
 void Game::update(float dt,const Input& input) {
     events.clear();if(phase!=Phase::Playing || !std::isfinite(dt) || dt<=0) return;
-    dt=std::min(dt,.1f);elapsed+=dt;shake=std::max(0.0f,shake-dt*8);noticeTime=std::max(0.0f,noticeTime-dt);
+    dt=std::min(dt,.1f);
+    // Keep minute boundaries on the fixed simulation clock. Rebase only when
+    // a fixture explicitly sets the public run time; never accumulate float drift.
+    if(float(elapsedTime)!=elapsed)elapsedTime=elapsed;
+    elapsedTime+=dt==FixedStep?1.0/60.0:double(dt);elapsed=float(elapsedTime);
+    shake=std::max(0.0f,shake-dt*8);noticeTime=std::max(0.0f,noticeTime-dt);
     for(auto& death:snakeDeaths)death.age+=dt;
     compact(snakeDeaths,[](const SnakeDeath& death){return death.age>=snakeDeathDuration(death.kind);});
     const Vec playerFrameStart=player.position;
     if(elapsed>=RunDuration) {elapsed=RunDuration;phase=Phase::Victory;events.push_back({Event::Win});return;}
-    const Stats s=stats();updateShield(dt);player.invulnerable=std::max(0.0f,player.invulnerable-dt);
+    const Stats s=stats();const double baseGrowth=s.growth-breakpointGrowth(player.level);
+    if(player.hp>0 && s.recovery>0)player.hp=std::min(player.maxHp,player.hp+float(s.recovery*dt));
+    updateShield(dt);updateGraviton(dt);player.invulnerable=std::max(0.0f,player.invulnerable-dt);
     if(player.collisionClock>=0)player.collisionClock=std::min(CollisionGraceSeconds,player.collisionClock+dt);
     updateGreySnakes(dt);
     if(greySnakes.blocks(player.position)){
@@ -408,30 +450,18 @@ void Game::update(float dt,const Input& input) {
         }
         player.collisionClock=-1;
         player.position=next;
+        if(greySnakes.enabled)greySnakes.recordMove(player.position,player.direction);
+        if(graviton.rank>0 && (player.direction.x!=graviton.lastDirection.x || player.direction.y!=graviton.lastDirection.y))
+            graviton.turns=std::min(4,graviton.turns+1);
+        graviton.lastDirection=player.direction;
         if(player.segments.empty()) player.segments.push_back(player.position);
         if(static_cast<int>(player.segments.size())<player.length) player.segments.push_back(player.segments.back());
         for(std::size_t i=player.segments.size()-1;i>0;--i) player.segments[i]=player.segments[i-1];player.segments[0]=player.position;
         if(player.previousSegments.size()<player.segments.size()) player.previousSegments.push_back(player.previousSegments.empty()?player.previous:player.previousSegments.back());
     }
-    const float spawnInterval=std::max(.045f,.75f/(1+elapsed/75));spawnClock+=dt;
-    while(spawnClock>=spawnInterval) {
-        spawnClock-=spawnInterval;const float a=random(0,Pi*2);const float roll=random(0,1);
-        const EnemyKind kind=elapsed>35 && roll<.16f?EnemyKind::Splitter:elapsed>70 && roll<.34f?EnemyKind::Swift:EnemyKind::Red;
-        spawnEnemy(kind,add(player.position,{std::cos(a)*random(155,225),std::sin(a)*random(125,185)}));
-    }
-    const float nextBoss=60+bossClock*120;
-    if(elapsed>=nextBoss) {
-        // The director runs before any spatial queries, so recycling an ordinary
-        // enemy here preserves stable indices throughout the combat phase.
-        if(enemies.size()>=EnemyCap) {
-            const auto ordinary=std::find_if(enemies.begin(),enemies.end(),[](const Enemy& e){return e.kind!=EnemyKind::Boss;});
-            if(ordinary!=enemies.end()) {*ordinary=std::move(enemies.back());enemies.pop_back();}
-        }
-        if(enemies.size()<EnemyCap) {
-            const float a=random(0,Pi*2);spawnEnemy(EnemyKind::Boss,add(player.position,{std::cos(a)*155,std::sin(a)*125}));
-            bossClock+=1;notice="AN ANCIENT SERPENT APPROACHES";noticeTime=4;
-        }
-    }
+    updateDirector(dt);
+    directFlood(dt);
+    triggerGraviton();
     moveEnemies(dt);
     for(auto& own:owned) if(catalog.upgrades[own.definition].kind==UpgradeKind::Weapon) {own.cooldown-=dt;if(own.cooldown<=0) fire(own,s);}
     updateNests(dt,s,equipped[std::size_t(Pattern::Nest)]?&current[std::size_t(Pattern::Nest)]:nullptr);
@@ -485,7 +515,7 @@ void Game::update(float dt,const Input& input) {
         std::size_t hitCount=0;
         grid.query(middle,queryRadius,[&](int i){
             const auto& enemy=enemies[std::size_t(i)];
-            if(!enemy.alive || enemy.grabbed || wasHit(p,enemy.id))return;
+            if(!enemy.alive || enemy.grabbed || enemy.kind==EnemyKind::Flood || wasHit(p,enemy.id))return;
             const Vec offset=sub(start,enemy.position);
             const float radius=enemy.radius+p.radius,c=lengthSq(offset)-radius*radius;
             float time=0;
@@ -498,10 +528,29 @@ void Game::update(float dt,const Input& input) {
             }
             if(hitCount<hits.size())hits[hitCount++]={i,time};
         });
+        const float waterTime=wasHit(p,flood.enemyId)?2:flood.contact(start,p.position,p.radius);
+        if(waterTime<=1 && hitCount<hits.size())hits[hitCount++]={-1,waterTime};
         std::sort(hits.begin(),hits.begin()+static_cast<std::ptrdiff_t>(hitCount),[&](const SweptHit& lhs,const SweptHit& rhs){
-            return lhs.time!=rhs.time?lhs.time<rhs.time:enemies[std::size_t(lhs.enemy)].id<enemies[std::size_t(rhs.enemy)].id;
+            if(lhs.time!=rhs.time)return lhs.time<rhs.time;
+            const auto left=lhs.enemy<0?flood.enemyId:enemies[std::size_t(lhs.enemy)].id;
+            const auto right=rhs.enemy<0?flood.enemyId:enemies[std::size_t(rhs.enemy)].id;
+            return left<right;
         });
         for(std::size_t index=0;index<hitCount && p.alive;++index){
+            if(hits[index].enemy<0){
+                const Vec impact=add(start,mul(delta,hits[index].time));
+                flood.repel(impact,std::max(14.0f,p.radius*2),p.velocity,65+float(std::min(50.0,p.damage*.1)));
+                if(p.hitCount<p.hitIds.size())p.hitIds[p.hitCount++]=flood.enemyId;p.lastHit=flood.enemyId;++p.impacts;
+                if(p.hitCount>=p.hitIds.size())p.alive=false;
+                else if(p.bounces>0){
+                    --p.bounces;p.position=impact;
+                    if(auto* target=nearest(impact,p.bounceRadius,flood.enemyId,&p)){p.targetId=target->id;p.velocity=mul(unit(sub(target->position,impact)),std::sqrt(lengthSq(p.velocity)));p.life=std::min(p.maxLife,p.life+(p.evolved?.25f:.3f)*s.duration);}
+                    else p.alive=false;
+                    if(events.size()<100)events.push_back({Event::Hit});break;
+                }else if(p.pierce>0)--p.pierce;else {p.alive=false;p.position=impact;}
+                if(events.size()<100)events.push_back({Event::Hit});
+                continue;
+            }
             auto& enemy=enemies[std::size_t(hits[index].enemy)];
             if(!enemy.alive || wasHit(p,enemy.id))continue;
             const Vec impact=add(start,mul(delta,hits[index].time));
@@ -540,7 +589,7 @@ void Game::update(float dt,const Input& input) {
     for(auto& z:zones) {
         const auto family=std::size_t(z.pattern);
         if(equipped[family]&&current[family].evolved==z.evolved){const auto& spec=current[family];
-            if(z.pattern==Pattern::Mortar){z.damage=spec.damage;if(z.evolved)z.detonationDamage=float(std::round(6.25*spec.unroundedDamage));}
+            if(z.pattern==Pattern::Mortar){z.damage=spec.damage;if(z.evolved)z.detonationDamage=float(std::round(6.25*spec.unroundedDamage*(z.gridlockSeed?.5:1)));}
             else if(z.pattern==Pattern::Nova){if(z.evolved){z.damage=spec.unroundedDamage;z.baseRadius=spec.area;}else if(z.singleHit&&z.damage>0)z.damage=std::round(spec.unroundedDamage*.5);}
         }
         if(z.followPlayer || z.pattern==Pattern::Shot || (z.pattern==Pattern::Nova && z.evolved))z.position=player.position;
@@ -560,6 +609,7 @@ void Game::update(float dt,const Input& input) {
         }
         if(z.life<=0 && z.pattern==Pattern::Mortar && z.evolved) {
             const float blastRadius=z.detonationDamage>0?z.radius:z.radius*1.35f;
+            flood.repel(z.position,blastRadius,{},115);
             grid.query(z.position,blastRadius+10,[&](int index){
                 auto& enemy=enemies[index];
                 if(enemy.alive && distanceSq(enemy.position,z.position)<=(blastRadius+enemy.radius)*(blastRadius+enemy.radius)) {const bool critical=z.canCrit && random(0,1)<s.crit;damageEnemy(enemy,(z.detonationDamage>0?z.detonationDamage:z.damage*2.5f)*(critical?2:1),critical);}
@@ -573,6 +623,7 @@ void Game::update(float dt,const Input& input) {
         }
         if(z.life<=0 || z.tick>0 || z.damage<=0) continue;
         z.tick=z.tickInterval;
+        if(z.pattern!=Pattern::Shot)flood.repel(z.position,z.radius,{},z.pattern==Pattern::Mortar?48.0f:65.0f);
         grid.query(z.position,z.radius+10,[&](int i){auto& e=enemies[i];if(!e.alive || distanceSq(e.position,z.position)>(z.radius+e.radius)*(z.radius+e.radius)) return;
             if(e.grabbed || z.pattern==Pattern::Shot)return;
             const bool critical=z.canCrit && random(0,1)<s.crit;const double scaled=z.damage*z.damageFactor;damageEnemy(e,z.pattern==Pattern::Nova&&z.evolved?std::round(scaled*(critical?2:1)):std::round(scaled)*(critical?2:1),critical);
@@ -580,26 +631,32 @@ void Game::update(float dt,const Input& input) {
         if(z.singleHit)z.damage=0;
     }
     for(std::size_t index=0;index<enemies.size();++index)if(forced[index] && enemies[index].alive)placeEnemy(enemies[index],forcedPositions[index]);
+    updateFlood(dt,playerFrameStart);
+    if(phase==Phase::Dead)return;
     const SpatialGrid contactGrid(enemies);
     if(player.invulnerable<=0) {
-        contactGrid.query(player.position,18,[&](int i){auto& e=enemies[i];if(player.invulnerable>0 || !e.alive || distanceSq(e.position,player.position)>(e.radius+3.0f)*(e.radius+3.0f)) return;
+        contactGrid.query(player.position,18,[&](int i){auto& e=enemies[i];if(player.invulnerable>0 || !e.alive || e.kind==EnemyKind::Flood || distanceSq(e.position,player.position)>(e.radius+3.0f)*(e.radius+3.0f)) return;
             if(e.grabbed)return;
             if(shieldCharges>0){--shieldCharges;if(shieldTimer<=0)shieldTimer=shieldCooldown;player.invulnerable=.25f;}
-            else{player.hp-=std::max(3,20-s.armor);player.invulnerable=1.0f;shake=3;events.push_back({Event::Hurt});}
+            else{player.hp-=std::max(3.0f,(e.contactDamage>0?e.contactDamage:20.0f)-s.armor);player.invulnerable=1.0f;shake=3;events.push_back({Event::Hurt});}
             placeEnemy(e,add(e.position,mul(unit(sub(e.position,player.position)),float(Tile)*2)));
         });
     }
     for(std::size_t i=0;i<pickups.size();) {
-        auto& p=pickups[i];p.previous=p.position;p.motionReady=true;const float dist=distanceSq(p.position,player.position);const float radius=p.kind==PickupKind::Chest?12:s.pickup;
-        if(dist<radius*radius && p.kind!=PickupKind::Chest) p.position=add(p.position,mul(unit(sub(player.position,p.position)),std::min(180*dt,std::sqrt(dist))));
-        const bool collected=p.kind==PickupKind::Chest
-            ?segmentDistanceSq(p.position,playerFrameStart,player.position)<=6*6
-            :distanceSq(p.position,player.position)<9*9;
+        auto& p=pickups[i];p.previous=p.position;p.motionReady=true;
+        // Loot stays on its landing cell. Sweep the head path so fast movement
+        // cannot skip a drop, without attracting it or collecting at the tail.
+        const bool collected=segmentDistanceSq(p.position,playerFrameStart,player.position)<=s.pickup*s.pickup;
         if(collected) {
             const auto kind=p.kind;const int value=p.value;pickups[i]=pickups.back();pickups.pop_back();
-            if(kind==PickupKind::Experience) collectExperience(value,s.growth);
-            else if(kind==PickupKind::Heart) player.hp=std::min(player.maxHp,player.hp+value);
-            else for(int reward=0;reward<value;++reward)collectChest();
+            if(kind==PickupKind::Experience) collectExperience(value,baseGrowth+breakpointGrowth(player.level));
+            else if(kind==PickupKind::Heart) {
+                player.length=std::min(MaxPlayerLength,player.length+1);
+                player.hp=std::min(player.maxHp,player.hp+value);
+            } else {
+                player.length=std::min(MaxPlayerLength,player.length+std::min(value,MaxPlayerLength));
+                for(int reward=0;reward<value;++reward)collectChest();
+            }
             if(events.size()<100) events.push_back({Event::Pickup});
         } else ++i;
     }
@@ -637,8 +694,8 @@ void Game::debugPopulate() {
     player.previousSegments=player.segments;enemies.clear();pickups.clear();
     for(int i=0;i<52;++i) {const float a=random(0,Pi*2),r=random(45,168);spawnEnemy(i%8==0?EnemyKind::Splitter:i%11==0?EnemyKind::Swift:EnemyKind::Red,add(player.position,{std::cos(a)*r,std::sin(a)*r*.65f}));auto& e=enemies.back();constexpr Vec dirs[]{{1,0},{0,1},{-1,0},{0,-1}};e.direction=dirs[i%4];e.velocity=mul(e.direction,e.speed);for(int k=0;k<e.trailSize;++k)e.trail[std::size_t(k)]=gridPosition(sub(e.position,mul(e.direction,float((k+1)*Tile))));e.previousTrail=e.trail;}
     spawnEnemy(EnemyKind::Boss,add(player.position,{118,-36}));
-    for(int i=0;i<65;++i) {const float a=random(0,Pi*2),r=random(12,175);pickups.push_back({add(player.position,{std::cos(a)*r,std::sin(a)*r*.65f}),i%9==0?3:1,PickupKind::Experience});}
-    pickups.push_back({add(player.position,{-85,-47}),1,PickupKind::Chest});pickups.push_back({add(player.position,{63,38}),20,PickupKind::Heart});
+    for(int i=0;i<65;++i) {const float a=random(0,Pi*2),r=random(12,175);pickups.push_back({gridPosition(add(player.position,{std::cos(a)*r,std::sin(a)*r*.65f})),i%9==0?3:1,PickupKind::Experience});}
+    pickups.push_back({gridPosition(add(player.position,{-85,-47})),1,PickupKind::Chest});pickups.push_back({gridPosition(add(player.position,{63,38})),20,PickupKind::Heart});
     zones.push_back({add(player.position,{45,-25}),23,2,3,8,0,Pattern::Mortar,false});zones.push_back({player.position,33,.4f,.6f,9,0,Pattern::Nova,false});
     for(int i=0;i<11;++i) {const float a=random(0,Pi*2);Projectile p;p.position=add(player.position,{std::cos(a)*random(15,65),std::sin(a)*random(15,65)});p.velocity={std::cos(a)*100,std::sin(a)*100};p.damage=15;p.life=1.5f;projectiles.push_back(p);}
     notice="THE BROOD IS GROWING";noticeTime=3;phase=Phase::Playing;

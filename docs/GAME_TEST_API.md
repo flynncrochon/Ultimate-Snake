@@ -1,5 +1,36 @@
 # Python GameTest API
 
+`reset(permanent={"might": 5, "growth": 1})` inherits explicit permanent ranks.
+Valid IDs are `might`, `vitality`, `armor`, `recovery`, `cooldown`, `growth`,
+`reroll`, and `banish`. Omitted ranks default to zero; invalid ranks fail before
+resetting the world. Snapshots include `permanent_upgrades` and
+`stats.recovery`. Ordinary resets clear bonuses and never load a player's save.
+See [permanent upgrades](PERMANENT_UPGRADES.md) for persistence and native UI tests.
+
+The stage lasts 1,800 simulation seconds. `hello.run_seconds` reports its
+duration. Snapshots include `progression` with the current one-minute wave,
+remaining wave seconds, population/cadence, scheduled boss count, effective
+HP damage, and raw XP dropped/collected. Player snapshots include
+`xp_remainder`; director-created enemies include `experience` and
+`contact_damage`. See [progression research](PROGRESSION.md) for formulas,
+adaptations, and the offline `snake_progression_sim` experiment.
+
+Flood fixtures use `game.spawn_flood(x, y, direction=(-1, 0), count=640,
+warning=1.5)` (or JSON command `spawn_flood`). Waves append to a shared pool of
+at most 1,536 samples. `configure(floods=True, flood_clock=59.99,
+flood_next_spawn=60)` controls its minute director independently. Isolated fixtures
+disable scheduled floods; explicit flood contact still kills an immune head.
+Snapshots include `flood` schedule/phase/repulsion data, active `waves` and
+`capacity` and, when full, `water_particles` with position, previous position,
+velocity, foam, per-sample `age`/`warning` and its source `wave`. A new wave
+keeps its own warning; older water remains lethal and drains independently
+after its 90-second lifetime plus a one-second fade. The
+legacy `water_impacts` array/count remain empty/zero for capture-tool
+compatibility; the selected original material uses its collision-foam field.
+The single `kind: flood` enemy handle is owned by the water system and cannot be
+modified with `set_enemy`. `clear` and `reset` remove both water and its handle.
+See [the flood contract](FLOOD.md).
+
 The test API follows Warforge's workflow: Python `test_*` functions drive a fresh,
 seeded native world and advance exact fixed ticks with `st.step(n)`. Tests call
 the actual C++ `Game::update`; there is no second simulation in Python. A small
@@ -146,7 +177,7 @@ paused/dead/victorious worlds retain their simulation state.
 | `unequip(id)` | Remove equipment without deleting already-created effects. |
 | `spawn_enemy(x, y, hp=1000, speed=0, kind="red")` | Create a target and return its stable handle. |
 | `spawn_enemies(list_of_dicts)` | Create a bounded batch in one bridge call. |
-| `spawn_grey_snake(path, alive=True, **fields)` | Create an oldest-first cardinal grey path of 1–168 points, strictly inside the boundary row/column. Supports `direction`, `previous`, `target`, `wall_direction`, `wall`, `wall_ticks`, `age`, and `move_clock`. At most one living head and thirteen total trails; other trails require a one-cell gap. Validation is atomic. |
+| `spawn_grey_snake(path, alive=True, **fields)` | Create an oldest-first cardinal grey path of 1–168 points, strictly inside the boundary row/column. Supports `direction`, `previous`, `target`, `wall_direction`, `wall`, `wall_ticks`, `cutting`, `age`, and `move_clock`. At most one living head; the total reserved trail limit is exposed as `grey_system.trail_capacity`. Other trails require a one-cell gap. Validation is atomic. |
 | `spawn_pickup(x=None, y=None, kind="experience", value=1)` | Place a grid-snapped experience, heart, or chest fixture. Chest quantities are bounded to 1–100. |
 | `set_enemy(handle, **fields)` | Change an existing target's HP, speed, position, or alive state. |
 | `step(n=1, direction=(0,0), full=False, validate=False)` | Advance fixed ticks, optionally returning full actors or checking invariants. |
@@ -166,6 +197,13 @@ Player fields include `position`, `previous`, `direction`, `segments`,
 `red`, `splitter`, `swift`, and `boss`; fixture enemies also accept `radius`,
 `length`, and `direction`.
 
+Gridlock is available through the `gridlock` alias or stable `graviton` catalog
+ID. Snapshots expose its turn charge, cooldown, cast serial, rooted center,
+radius, age, and duration under `graviton`; full enemy snapshots include
+`gravity_hold`. Charge it through successful movement turns rather than wall
+clock waits. The `snake_graviton_tests` and `test_graviton` suites cover its live
+movement phase, turn charging, dense casts, weapon interactions, and lifecycle.
+
 Enemy fixtures accept HP up to `1e12` so dense performance tests can retain
 their target population after evolution tuning. This changes test placement
 limits; the ordinary enemy director still authors gameplay HP.
@@ -177,7 +215,9 @@ duplicates, and non-integer IDs are rejected without consuming a handle.
 
 ## State and profiling
 
-Snapshots always contain `grey_system` (scheduled spawning, clock, next spawn),
+Snapshots always contain `grey_system` (scheduled spawning, clock, nominal
+`next_spawn`, pressure-adjusted `spawn_time`, `predictability`, `straight_steps`,
+`repeated_steps`, `route_count`, and `trail_capacity`),
 and `counts.grey_snakes`, `counts.grey_trails`, `counts.grey_barriers` (living
 heads, retired trails, distinct occupied cells). Full snapshots include
 `grey_trails` with every oldest-first path and its actual AI/movement state.

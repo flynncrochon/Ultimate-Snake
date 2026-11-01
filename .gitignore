@@ -5,6 +5,7 @@
 /out/
 *.user
 snake-survivors.save
+snake-survivors.save.tmp
 snake-settings.json
 snake-settings.json.tmp
 __pycache__/

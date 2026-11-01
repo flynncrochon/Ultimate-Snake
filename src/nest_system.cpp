@@ -101,6 +101,7 @@ void Game::updateNests(float dt,const Stats& derived,const WeaponSpec* current) 
     // snapshotted lifetime and cannot instantly bite during the hatching frame.
     for(MiniSnake& mini:miniSnakes) {
         if(!mini.alive)continue;
+        if(flood.dangerous())flood.repel(mini.position,4,mini.direction,5);
         if(current && current->evolved==mini.evolved && mini.maxLife>0){
             const float total=mini.generation==1?float(std::round(50.0*derived.duration)*.07):current->duration;
             mini.life+=total-mini.maxLife;mini.maxLife=total;

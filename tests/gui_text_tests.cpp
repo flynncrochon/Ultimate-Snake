@@ -119,6 +119,62 @@ int main(){
             game.phase=Phase::Playing;app.codex=true;capture(app,target,"ui-codex.png");
             require(game.elapsed==elapsed&&game.seed==seed&&game.owned.empty()&&game.chestRewards.empty(),"Drawing GUI text fixtures changed gameplay state");
         });
+        test("minimal evolution recipes retain accurate ranks and neutral uncluttered tiles",[&]{
+            Presentation app(catalog);prepare(app);app.codex=true;
+            // Maxed without a passive, ready with a rank-one passive, already
+            // evolved, partly ranked, a passive-only recipe, then unowned recipes.
+            app.game.owned={{catalog.find("venom_shot"),8,false,1000},
+                {catalog.find("viper_fangs"),8,false,1000},{catalog.find("rapid_fire"),1,false,1000},
+                {catalog.find("plague_mortar"),8,true,1000},{catalog.find("graviton"),8,false,1000},
+                {catalog.find("snake_nest"),3,false,1000},{catalog.find("toxic_expanse"),1,false,1000}};
+            const auto pixels=capture(app,target,"ui-codex-states.png");
+            // Compare the actual count glyphs, including a rank-eight passive
+            // capped to the recipe's one-rank requirement, with native font masks.
+            const char* counts[][2]{{"8/8","0/1"},{"8/8","1/1"},{"8/8","1/1"},{"3/8","0/1"},{"0/8","1/1"}};
+            BeginTextureMode(target);ClearBackground(BLACK);
+            for(int i=0;i<5;++i)for(int row=0;row<2;++row){
+                const int x=49+(i%3)*238+214-pixel::width(counts[i][row]),y=112+(i/3)*96+45+row*19;
+                pixel::text(counts[i][row],x,y,WHITE);
+            }
+            EndTextureMode();Image mask=LoadImageFromTexture(target.texture);
+            require(mask.data!=nullptr,"Native requirement font mask could not be read");ImageFlipVertical(&mask);
+            bool countsMatch=true;
+            for(int i=0;i<5;++i)for(int row=0;row<2;++row){
+                const int width=pixel::width(counts[i][row]),x=49+(i%3)*238+214-width,y=112+(i/3)*96+45+row*19;
+                for(int py=y;py<y+8;++py)for(int px=x;px<x+width;++px)
+                    countsMatch=countsMatch&&((GetImageColor(mask,px,py).r>0)==(pixels[std::size_t(py*CanvasWidth+px)].r>=148));
+            }
+            UnloadImage(mask);require(countsMatch,"A trimmed recipe lost its real weapon or passive count");
+            for(std::size_t i=0;i<catalog.evolutions.size()&&i<9;++i){
+                const auto& recipe=catalog.evolutions[i];
+                const auto& weapon=catalog.upgrades[std::size_t(catalog.find(recipe.weapon))];
+                const auto& passive=catalog.upgrades[std::size_t(catalog.find(recipe.passive))];
+                require(pixel::width(recipe.name)<=164,"An evolution title overlaps its completion tick");
+                require(pixel::width(weapon.name)+pixel::width("8/8")+6<=186,"A weapon label collides with its rank");
+                require(pixel::width(passive.name)+pixel::width("1/1")+6<=186,"A passive label collides with its rank");
+                const int x=49+int(i%3)*238,y=112+int(i/3)*96;
+                const bool hasWeapon=i<4;const int backing=hasWeapon?30:23;
+                const auto marker=pixels[std::size_t((y+18)*CanvasWidth+x+5)];
+                require(marker.r==(hasWeapon?148:23),"Ownership marker did not follow the weapon, including passive-only recipes");
+                int brightRank=0;
+                for(int py=y+45;py<y+53;++py)for(int px=x+190;px<x+214;++px)
+                    brightRank+=pixels[std::size_t(py*CanvasWidth+px)].r==226;
+                require(hasWeapon?brightRank>10:brightRank==0,"A partly ranked weapon did not stand out from an unowned weapon");
+                for(int py=0;py<84;++py)for(int px=0;px<226;++px){
+                    const bool icon=(px>=12&&px<36&&py>=10&&py<34)||
+                        (px>=12&&px<22&&((py>=44&&py<54)||(py>=63&&py<73)));
+                    const auto c=pixels[std::size_t((y+py)*CanvasWidth+x+px)];
+                    if(!icon)require(c.r==c.g&&c.g==c.b,"An evolution tile regained a colored accent");
+                    if(px>=44&&px<214&&py>=28&&py<43)
+                        require(c.r==backing&&c.g==backing&&c.b==backing,"A status label or divider returned beneath an evolution title");
+                }
+            }
+            for(int x=28;x<772;++x)for(const int y:{96,403}){const auto c=pixels[std::size_t(y*CanvasWidth+x)];
+                require(c.r==12&&c.g==12&&c.b==12,"The evolution guide regained a bright outer border");
+            }
+            require(app.game.owned[0].rank==8&&!app.game.owned[0].evolved&&app.game.chests==0,
+                "Drawing chest readiness evolved a weapon or granted a reward");
+        });
         require(!IsAudioDeviceReady(),"Native GUI tests initialized audio");
     }catch(const std::exception& error){++failed;std::cerr<<"Native GUI setup failed: "<<error.what()<<'\n';}
     if(target.id)UnloadRenderTexture(target);if(IsWindowReady())CloseWindow();

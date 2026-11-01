@@ -32,8 +32,8 @@ double threadCpuMs(){
 #endif
     return 0;
 }
-void populate(snake::Game& game,bool dense) {
-    game.reset(0,123);game.enemies.clear();game.projectiles.clear();game.zones.clear();game.pickups.clear();
+void populate(snake::Game& game,bool dense,const snake::PermanentUpgrades& permanent={}) {
+    game.reset(0,123,permanent);game.enemies.clear();game.projectiles.clear();game.zones.clear();game.pickups.clear();
     game.nestEggs.clear();game.miniSnakes.clear();game.damageNumbers.clear();
     const int count=dense?1800:300;
     for(int i=0;i<count;++i){
@@ -61,8 +61,8 @@ void populate(snake::Game& game,bool dense) {
     }
 }
 double mean(const std::vector<double>& v){return std::accumulate(v.begin(),v.end(),0.0)/double(v.size());}
-void populateReckoning(snake::Game& game,int scenario) {
-    populate(game,scenario!=0);game.zones.clear();game.grapples.clear();
+void populateReckoning(snake::Game& game,int scenario,const snake::PermanentUpgrades& permanent={}) {
+    populate(game,scenario!=0,permanent);game.zones.clear();game.grapples.clear();
     const int tongues=scenario==0?1:16;
     const int bites=scenario==0?1:scenario==1?16:128;
     for(int i=0;i<tongues;++i){
@@ -82,8 +82,8 @@ void populateReckoning(snake::Game& game,int scenario) {
         bite.phase=float(i)*.78539816f;game.zones.push_back(bite);
     }
 }
-void populateSwarm(snake::Game& game,int count,bool combat) {
-    populate(game,true);game.enemies.clear();game.projectiles.clear();game.zones.clear();game.miniSnakes.clear();game.owned.clear();
+void populateSwarm(snake::Game& game,int count,bool combat,const snake::PermanentUpgrades& permanent={}) {
+    populate(game,true,permanent);game.enemies.clear();game.projectiles.clear();game.zones.clear();game.miniSnakes.clear();game.owned.clear();
     game.player.moveClock=-10000;game.player.invulnerable=10000;game.spawnClock=-10000;game.bossClock=100;
     game.enemies.reserve(std::size_t(count));
     for(int i=0;i<count;++i){
@@ -106,20 +106,21 @@ std::uint64_t enemyChecksum(const snake::Game& game){
     for(const auto& enemy:game.enemies){result=(result^enemy.id)*1099511628211ull;add(enemy.position.x);add(enemy.position.y);add(enemy.moveClock);add(enemy.moveInterval);for(const auto p:enemy.trail){add(p.x);add(p.y);}}
     return result;
 }
-void populateGreyBarriers(snake::Game& game){
+void populateGreyBarriers(snake::Game& game,std::size_t count){
     auto& system=game.greySnakes;system.reset();system.enabled=false;system.clock=1175;
-    // Maximum run population, with repeated own-wall sweeps. Every trail is
-    // visible, keeps a cell gap from its neighbors, and uses full-quality art.
-    for(std::size_t i=0;i<snake::GreyTrailCapacity;++i){
+    // Keep --grey's original thirteen-trail workload comparable. The adaptive
+    // maximum is selected separately; off-screen trails exercise culling.
+    for(std::size_t i=0;i<count;++i){
         system.trails.emplace_back();auto& trail=system.trails.back();trail.id=std::uint8_t(i+1);
-        trail.alive=i+1==snake::GreyTrailCapacity;trail.age=trail.alive?5:10;
-        const int count=trail.alive?84:167;
-        for(int j=0;j<count;++j){
+        trail.alive=i+1==count;trail.age=trail.alive?5:10;
+        const int cells=trail.alive?84:167;
+        for(int j=0;j<cells;++j){
             const int sweep=i==6?14:30,phase=j%(sweep*2);
             // Leave the player's current cell/body clear: grey contact is
             // lethal even in the benchmark's otherwise immune moving fixture.
-            system.append(trail,{(i==6?824:680)+float((phase<=sweep?phase:sweep*2-phase)*snake::Tile),704+float(i*16)});
+            system.append(trail,{(i==6?824:680)+float(i/40)*320+float((phase<=sweep?phase:sweep*2-phase)*snake::Tile),704+float((i%40)*16)});
         }
+        if(trail.count<2)throw std::runtime_error("Grey benchmark layout exceeded the arena.");
         trail.previous=trail.path[trail.count-2];trail.direction={trail.path[trail.count-1].x>trail.previous.x?1.0f:-1.0f,0};
         trail.moveClock=.03;trail.target={920,trail.path[trail.count-1].y};trail.wallDirection={0,-1};
     }
@@ -129,17 +130,25 @@ void populateGreyBarriers(snake::Game& game){
 int main(int argc,char** argv){
     try{
         int frames=240;if(argc>1)frames=std::clamp(std::stoi(argv[1]),30,10000);
-        bool diagnose=false,shield=false,grey=false,reckoning=false,wide=false;
+        bool diagnose=false,shield=false,grey=false,greyCapacity=false,reckoning=false,wide=false,gridlock=false,flood=false,floodMerged=false,codex=false,permanent=false;
         for(int i=2;i<argc;++i){
             if(std::string(argv[i])=="--diagnose")diagnose=true;
             else if(std::string(argv[i])=="--shield")shield=true;
             else if(std::string(argv[i])=="--grey")grey=true;
+            else if(std::string(argv[i])=="--grey-capacity"){grey=true;greyCapacity=true;}
             else if(std::string(argv[i])=="--reckoning")reckoning=true;
             else if(std::string(argv[i])=="--wide")wide=true;
+            else if(std::string(argv[i])=="--gridlock")gridlock=true;
+            else if(std::string(argv[i])=="--flood")flood=true;
+            else if(std::string(argv[i])=="--flood-merged"){flood=true;floodMerged=true;}
+            else if(std::string(argv[i])=="--codex")codex=true;
+            else if(std::string(argv[i])=="--permanent")permanent=true;
             else throw std::runtime_error("Unknown render benchmark option.");
         }
         const std::filesystem::path beside=std::filesystem::absolute(argv[0]).parent_path()/"data";
         const auto catalog=snake::Catalog::load(std::filesystem::exists(beside/"upgrades.csv")?beside.string():"data");
+        snake::PermanentUpgrades inherited;
+        if(permanent)for(std::size_t i=0;i<snake::PermanentUpgradeCount;++i)inherited.ranks[i]=snake::permanentDefinitions()[i].maxRank;
         const int width=wide?1280:800,height=wide?800:500;
         SetTraceLogLevel(LOG_WARNING);SetConfigFlags(FLAG_WINDOW_HIDDEN);InitWindow(width,height,"Snake render benchmark");SetTargetFPS(0);
         if(!IsWindowReady())throw std::runtime_error("OpenGL window is unavailable.");
@@ -147,14 +156,32 @@ int main(int argc,char** argv){
         {
             const auto preparing=Clock::now();
             snake::Presentation app(catalog);app.screen=snake::Screen::Game;
+            app.codex=codex;
             app.setViewport(width,height);
             const double preparationMs=std::chrono::duration<double,std::milli>(Clock::now()-preparing).count();
             for(int scenario=0;scenario<(reckoning?3:6);++scenario){
                 const bool dense=scenario!=0,lottery=!reckoning && scenario==2;
                 const bool moving=!reckoning && (scenario==3 || scenario==4),renderOnly=scenario==5;
-                if(reckoning)populateReckoning(app.game,scenario);
-                else if(scenario>=3)populateSwarm(app.game,renderOnly?10000:1800,scenario==4);else populate(app.game,dense);
-                if(grey)populateGreyBarriers(app.game);
+                if(reckoning)populateReckoning(app.game,scenario,inherited);
+                else if(scenario>=3)populateSwarm(app.game,renderOnly?10000:1800,scenario==4,inherited);else populate(app.game,dense,inherited);
+                if(grey)populateGreyBarriers(app.game,greyCapacity?snake::GreyTrailCapacity:13);
+                if(flood){
+                    // Keep the total enemy cap, replacing one ordinary target
+                    // with the flood's weapon handle. The existing dense art,
+                    // actors and effects otherwise retain their full quality.
+                    const snake::Vec at{app.game.player.position.x-105,app.game.player.position.y+36};
+                    if(renderOnly){
+                        if(!app.game.flood.start(at,{1,0},floodMerged?640:768,0))throw std::runtime_error("Render-only flood fixture failed.");
+                    }else{
+                        if(app.game.enemies.size()>=1800)app.game.enemies.pop_back();
+                        if(!app.game.spawnFlood(at,{1,0},floodMerged?640:768,0))throw std::runtime_error("Flood benchmark fixture failed.");
+                    }
+                    if(floodMerged){
+                        for(auto& p:app.game.flood.particles)p.age=60;
+                        const snake::Vec joining{at.x+38,at.y+12};
+                        if(!app.game.flood.start(joining,{-1,0},640,0))throw std::runtime_error("Merged flood benchmark fixture failed.");
+                    }
+                }
                 if(shield){
                     // Exercise a maximum-length shield with many visible turns.
                     auto& player=app.game.player;player.segments={player.position};player.length=120;
@@ -185,6 +212,13 @@ int main(int argc,char** argv){
                     app.setRenderFrame(float((frame+60)%4)/4,!renderOnly);
                     const int loopFrames=int(std::ceil((snake::loot::RevealSeconds+.5f)*60));
                     const float revealTime=lottery?float((frame+60)%loopFrames)/60.0f:-1;
+                    if(gridlock){
+                        // Hold the display workload at maximum occupancy for
+                        // every sample; this fixture measures rendering only.
+                        app.game.graviton.center=app.game.player.position;
+                        app.game.graviton.radius=6*snake::Tile;app.game.graviton.duration=1.45f;app.game.graviton.age=.3f;
+                        for(auto& enemy:app.game.enemies)enemy.gravityHold=1;
+                    }
                     BeginTextureMode(target);ClearBackground(BLACK);app.draw(revealTime);EndTextureMode();
                     const auto submitted=Clock::now();
                     BeginDrawing();ClearBackground(BLACK);DrawTextureRec(target.texture,{0,0,float(width),-float(height)},{0,0},WHITE);EndDrawing();
@@ -205,6 +239,10 @@ int main(int argc,char** argv){
                 const char* name=reckoning?(scenario==0?"reckoning_sparse":scenario==1?"reckoning_dense":"reckoning_capacity"):scenario==5?"render_only_10000":scenario==4?"moving_combat_1800":scenario==3?"moving_swarm_1800":lottery?"dense_lottery":dense?"dense":"representative";
                 std::cout<<std::fixed<<std::setprecision(4)<<"{\"scenario\":\""<<name<<"\",\"frames\":"<<frames
                     <<",\"viewport_width\":"<<width<<",\"viewport_height\":"<<height
+                    <<",\"evolution_codex\":"<<(codex?"true":"false")
+                    <<",\"permanent_upgrades\":"<<(permanent?"true":"false")
+                    <<",\"gridlock\":"<<(gridlock?"true":"false")
+                    <<",\"flood\":"<<(flood?"true":"false")<<",\"water_particles\":"<<app.game.flood.particles.size()
                     <<",\"shield\":"<<(shield?"true":"false")
                     <<",\"grey_barriers\":"<<app.game.greySnakes.barrierCount<<",\"grey_trails\":"<<app.game.greySnakes.trails.size()
                     <<",\"enemies\":"<<app.game.enemies.size()<<",\"projectiles\":"<<app.game.projectiles.size()<<",\"zones\":"<<app.game.zones.size()

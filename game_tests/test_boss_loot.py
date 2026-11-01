@@ -4,9 +4,9 @@ from . import snake_test as st
 TIER = "logic"
 
 
-def test_adjacent_arena_edge_boss_loot_remains_visible_then_awards_a_rank():
+def test_distant_arena_edge_boss_loot_remains_visible_then_awards_a_rank():
     st.reset(seed=0xC8E57)
-    st.player(position=[1584,800], next_xp=1000000)
+    st.player(position=[1576,800], next_xp=1000000)
     st.equip("venom_nova",1)
     st.spawn_enemy(1592,800,hp=1,speed=0,kind="boss")
     state=st.step(1,full=True)

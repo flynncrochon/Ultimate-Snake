@@ -78,7 +78,9 @@ void Game::fire(OwnedUpgrade& own,const Stats& s){
         }return;
     }
     if(d.pattern==Pattern::Lash){
-        for(int i=0;i<w.amount && std::size_t(i)<count && grapples.size()<16;++i){auto* target=targets[count-1-std::size_t(i)];Grapple grapple;grapple.target=target->id;grapple.position=player.position;grapple.direction=normal(minus(target->position,player.position));grapple.maxDistance=std::sqrt(dist(target->position,player.position));grapple.damage=w.unroundedDamage;grapple.radius=w.area*s.area;grapples.push_back(grapple);}return;
+        for(int i=0;i<w.amount && std::size_t(i)<count && grapples.size()<16;++i){auto* target=targets[count-1-std::size_t(i)];
+            if(target->kind==EnemyKind::Flood){flood.repel(target->position,std::max(20.0f,w.area*s.area),minus(target->position,player.position),100);visual(Pattern::Lash,target->position,w.area,.35f,false);continue;}
+            Grapple grapple;grapple.target=target->id;grapple.position=player.position;grapple.direction=normal(minus(target->position,player.position));grapple.maxDistance=std::sqrt(dist(target->position,player.position));grapple.damage=w.unroundedDamage;grapple.radius=w.area*s.area;grapples.push_back(grapple);}return;
     }
     if(d.pattern==Pattern::Mortar || d.pattern==Pattern::Pit){
         Enemy* primary=count?targets[0]:nullptr;int score=-1;
@@ -146,6 +148,7 @@ void Game::updateWeaponActors(float dt,const Stats& s,const std::array<WeaponSpe
             const float wobble=i<8?fang.radiusAmplitude*.2f:fang.radiusAmplitude;
             const float radius=(orbit+wobble*std::sin(fang.radiusPhase+elapsed*fang.radiusFrequency))*Tile*s.area;
             const float angle=fang.angle+fang.angleAmplitude*std::cos(fang.anglePhase+elapsed*fang.angleFrequency);orbitFangs[i]=plus(player.position,{std::cos(angle)*radius,std::sin(angle)*radius});}
+        if(flood.dangerous())for(const Vec fang:orbitFangs)flood.repel(fang,contactRadius,minus(fang,player.position),8);
         for(auto& enemy:enemies)if(enemy.alive && !enemy.grabbed && enemy.orbitCooldown<=0){const float radial=dist(enemy.position,player.position);if(radial>float(Tile*Tile)*145*s.area*s.area)continue;
             for(const Vec fang:orbitFangs)if(dist(enemy.position,fang)<=(contactRadius+enemy.radius)*(contactRadius+enemy.radius)){const bool crit=random(0,1)<s.crit;damageEnemy(enemy,std::round(orbitSpec.unroundedDamage*(crit?2:1)),crit);enemy.orbitCooldown=orbitSpec.tickInterval;break;}}
     }

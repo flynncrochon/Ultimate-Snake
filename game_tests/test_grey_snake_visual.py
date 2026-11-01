@@ -120,6 +120,29 @@ def test_grey_native_minimap_and_collision_warning():
     assert red > 40 and (green,blue) == (0,0)
 
 
+def test_grey_native_last_doorway_remains_visibly_open():
+    _native()
+    path = [[800,720]]
+    for direction, cells in ((st.EAST,10),(st.SOUTH,20),(st.WEST,20),(st.NORTH,20),(st.EAST,8)):
+        for _ in range(cells):
+            p = path[-1]
+            path.append([p[0]+direction[0]*8,p[1]+direction[1]*8])
+    st.player(position=[792,800], direction=st.NORTH,
+              segments=[[792,800+i*8] for i in range(7)], length=7)
+    st.spawn_grey_snake(path, wall=True, wall_direction=st.EAST, target=[808,720], age=9.93)
+    st.step(4)
+    before = st.snapshot()
+    capture = OUTPUT / 'preserved-doorway.png'
+    st.capture(capture, world_only=True, render_alpha=1)
+    image = _png.read(capture)
+    assert image.pixel(380,50)[:3] == (102,102,102), 'Left wall is missing'
+    assert image.pixel(420,50)[:3] == (102,102,102), 'Right wall is missing'
+    for y in range(43,57):
+        for x in range(393,407):
+            assert image.pixel(x,y)[:3] == (0,0,0), 'The preserved opening rendered as a wall'
+    assert st.snapshot() == before, 'Escape capture changed the simulation'
+
+
 def test_grey_native_retirement_finishes_the_head_edge_without_a_snap():
     _native()
     st.spawn_grey_snake([[840,760],[848,760]], direction=st.EAST, target=[856,760],

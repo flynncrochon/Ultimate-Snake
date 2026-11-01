@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
+#include <limits>
 #include <rlgl.h>
 
 namespace snake {
@@ -15,6 +16,7 @@ constexpr Color White{255,255,255,255}, Gray{190,190,190,255}, DarkGray{85,85,85
 constexpr Color Cyan{0,255,255,255}, Green{68,255,68,255}, Yellow{255,255,0,255};
 constexpr Color Orange{255,170,0,255}, Border{68,68,68,255};
 constexpr int UpgradeCardWidth=176,UpgradeCardHeight=244,UpgradeCardGap=14;
+constexpr int EvolutionMenuWidth=744,EvolutionMenuHeight=308;
 int upgradeY(int height){return (height-UpgradeCardHeight)/2-10;}
 int upgradeStart(int count,int width){return (width-(UpgradeCardWidth*count+UpgradeCardGap*(count-1)))/2;}
 constexpr const char* Names[]{"COBRA","TAIPAN","MAMBA","BASILISK"};
@@ -34,14 +36,10 @@ int evolutionIcon(Pattern p) {
     constexpr int indices[]{18,19,20,21,22,23,24,25,26};return indices[int(p)];
 }
 }
-Presentation::Presentation(const Catalog& catalog,const Settings& initialSettings) : game(catalog),settings(initialSettings),settingsDraft(initialSettings) {
+Presentation::Presentation(const Catalog& catalog,const Settings& initialSettings,const std::string& profilePath,bool persistentProfile)
+    : game(catalog),settings(initialSettings),settingsDraft(initialSettings),profileStorage(profilePath,persistentProfile) {
     prepareWorldEffects();
-#ifdef __EMSCRIPTEN__
-    savePath = web::ProfilePath;
-#else
-    savePath = (std::filesystem::path(GetApplicationDirectory()) / "snake-survivors.save").string();
-#endif
-    loadProfile();
+    profile=profileStorage.loaded().value;permanentMessage.reserve(160);
     sound = settings.audio.enabled;
     game.debugPopulate();
     if (!IsWindowHidden()) {
@@ -67,6 +65,8 @@ Presentation::Presentation(const Catalog& catalog,const Settings& initialSetting
     }
 }
 Presentation::~Presentation() {
+    if(runStarted && !recorded)finishRun();
+    profileStorage.close(profileChanged?&profile:nullptr);
     if (audioReady) {
         resetAudio();
         for (const auto& bank : sounds) for (const Sound sample : bank) if (IsSoundValid(sample)) UnloadSound(sample);
@@ -133,21 +133,9 @@ void Presentation::toggleSound() {
     settings.audio.enabled=enabled;sound=enabled;
     if(!enabled)resetAudio();
 }
-void Presentation::loadProfile() {
-    std::ifstream file(savePath);
-    std::string version;
-    Profile loaded;
-    if (file >> version >> loaded.bestKills >> loaded.runs >> loaded.bestSeconds >> loaded.victories >> loaded.sound && version == "SS1") {
-        if (loaded.bestKills >= 0 && loaded.runs >= 0 && loaded.bestSeconds >= 0 && loaded.victories >= 0) profile = loaded;
-    }
-}
 void Presentation::saveProfile() {
-    profile.sound = sound;
-    std::ofstream file(savePath, std::ios::trunc);
-    file << "SS1 " << profile.bestKills << ' ' << profile.runs << ' ' << profile.bestSeconds << ' ' << profile.victories << ' ' << profile.sound << '\n';
-#ifdef __EMSCRIPTEN__
-    file.close();web::flushSaves();
-#endif
+    profile.sound=sound;profileChanged=true;
+    profileSavePending=!profileStorage.submit(profile);
 }
 
 void Presentation::startRun(std::uint32_t seed) {
@@ -155,7 +143,8 @@ void Presentation::startRun(std::uint32_t seed) {
     settingsOpen=false;rebindingAction=-1;
     motionHistory.clear();interpolateMotion=false;renderFraction=1;
     if(seed==0)seed=std::uint32_t(GetTime()*1000.0)^0x5EEDu;
-    game.reset(selectedCharacter,seed);screen=Screen::Countdown;countdown=1;codex=false;recorded=false;focus=0;
+    game.reset(selectedCharacter,seed,profile.upgrades);screen=Screen::Countdown;countdown=1;codex=false;recorded=false;focus=0;
+    permanentOpen=false;runStarted=true;bankedGold=0;
     acknowledgedChest=revealingChest=0;rewardTime=0;reelTicker.reset();deathSeconds=0;
     // Begin the first visual cell immediately when the countdown finishes.
     game.player.moveClock=game.player.moveInterval;
@@ -169,7 +158,7 @@ const ChestReward* Presentation::pendingChestReward() const {
     for(const auto& reward:game.chestRewards)if(reward.serial>acknowledgedChest)return &reward;
     return nullptr;
 }
-bool Presentation::simulationBlocked() const {return settingsOpen || codex || pendingChestReward()!=nullptr;}
+bool Presentation::simulationBlocked() const {return settingsOpen || permanentOpen || codex || pendingChestReward()!=nullptr;}
 float Presentation::chestRevealSeconds() const {
     const auto* reward=pendingChestReward();
     return reward && revealingChest==reward->serial?rewardTime:0;
@@ -181,16 +170,37 @@ bool Presentation::acknowledgeChestReward() {
     return true;
 }
 void Presentation::finishRun() {
-    if(recorded)return;
-    recorded=true;++profile.runs;profile.bestKills=std::max(profile.bestKills,game.kills);
+    if(recorded || !runStarted)return;
+    recorded=true;if(profile.runs<std::numeric_limits<int>::max())++profile.runs;profile.bestKills=std::max(profile.bestKills,game.kills);
     profile.bestSeconds=std::max(profile.bestSeconds,int(game.elapsed));
-    if(game.phase==Phase::Victory)++profile.victories;
+    if(game.phase==Phase::Victory && profile.victories<std::numeric_limits<int>::max())++profile.victories;
+    bankedGold=bankGold(profile,game.gems);
     saveProfile();
 }
 void Presentation::captureScene(const std::string& scene) {
+    if(scene=="permanent"){screen=Screen::Menu;openPermanentUpgrades();return;}
     if(scene=="settings"){screen=Screen::Menu;openSettings();return;}
     if(scene=="menu"){screen=Screen::Menu;return;}
     startRun(0x5EEDu);screen=Screen::Game;countdown=0;game.debugPopulate();
+      if(scene=="flood"){
+          game.reset(0,1942);game.enemies.clear();game.pickups.clear();game.owned={{game.catalog.find("viper_fangs"),2,false,0}};
+          game.spawnClock=-10000;game.bossClock=100;game.greySnakes.enabled=false;game.flood.enabled=false;
+          auto& player=game.player;player.segments.clear();
+          for(int y=800;y<=880;y+=Tile)player.segments.push_back({800,float(y)});
+          player.segments.push_back({808,880});
+          for(int y=880;y>=720;y-=Tile)player.segments.push_back({816,float(y)});
+          player.length=int(player.segments.size());player.previousSegments=player.segments;
+          player.direction=player.queued={-1,0};player.moveClock=-1000;player.invulnerable=0;
+          for(int i=0;i<3;++i){
+              Enemy enemy;enemy.id=std::uint32_t(10000+i);enemy.position=enemy.previous={888,744+float(i*56)};
+              enemy.speed=0;enemy.hp=enemy.maxHp=1e8;enemy.motionReady=true;enemy.direction={1,0};
+              for(int j=0;j<enemy.trailSize;++j)enemy.trail[std::size_t(j)]={enemy.position.x+float((j+1)*Tile),enemy.position.y};
+              enemy.previousTrail=enemy.trail;game.enemies.push_back(enemy);
+          }
+          game.spawnFlood({872,824},{-1,0},int(FloodCapacity),0);
+          for(int i=0;i<50;++i)game.update(FixedStep,{});
+          player.moveClock=0;return;
+      }
     if(scene=="nest-flight" || scene=="nest-hatch" || scene=="nest-brood"){
         game.reset(0,0x5EEDu);game.owned={{game.catalog.find("snake_nest"),1,false,0}};
         game.enemies.clear();game.pickups.clear();game.spawnClock=-1000;game.bossClock=10;
@@ -212,16 +222,26 @@ void Presentation::captureScene(const std::string& scene) {
 void Presentation::update(float dt,Vec cursor,bool pressed) {
     const bool mouseMoved=cursor.x!=mouse.x || cursor.y!=mouse.y;
     visualTime+=dt;mouse=cursor;clicked=pressed;
+    if(profileSavePending && profileStorage.state()!=ProfileSaveState::Blocked)profileSavePending=!profileStorage.submit(profile);
     if(settingsOpen){
         const Vec saved=mouse;mouse.x-=float((viewWidth-CanvasWidth)/2);mouse.y-=float((viewHeight-CanvasHeight)/2);
         updateSettings(dt);mouse=saved;return;
     }
     if(IsKeyPressed(settings.controls.keys[std::size_t(Action::Settings)])){openSettings();return;}
     if(IsKeyPressed(settings.controls.keys[std::size_t(Action::Mute)]))toggleSound();
+    if(permanentOpen){updatePermanentUpgrades(mouseMoved);return;}
     if(IsKeyPressed(KEY_F3) && std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_F3)==settings.controls.keys.end())debug=!debug;
+    const bool codexWasOpen=codex;
     if(IsKeyPressed(settings.controls.keys[std::size_t(Action::Codex)]) || (settings.controls.keys[std::size_t(Action::Codex)]==KEY_TAB && IsKeyPressed(KEY_F2)))codex=!codex;
-    if(codex){if(IsKeyPressed(KEY_ESCAPE))codex=false;return;}
+    if(codex || codexWasOpen){
+        const int x=(viewWidth-EvolutionMenuWidth)/2,y=(viewHeight-EvolutionMenuHeight)/2;
+        if(IsKeyPressed(KEY_ESCAPE) || (clicked && inside(mouse,x+EvolutionMenuWidth-24,y-30,24,24)))codex=false;
+        // Opening, browsing and closing the guide all consume their input.
+        // Underlying upgrade/menu buttons also process clicks during drawing.
+        clicked=false;return;
+    }
     if(screen==Screen::Menu){
+        if(IsKeyPressed(KEY_U) && std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_U)==settings.controls.keys.end()){openPermanentUpgrades();return;}
         if(IsKeyPressed(KEY_RIGHT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Right)]))selectedCharacter=(selectedCharacter+1)%4;
         if(IsKeyPressed(KEY_LEFT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Left)]))selectedCharacter=(selectedCharacter+3)%4;
         if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))startRun();
@@ -276,7 +296,7 @@ void Presentation::update(float dt,Vec cursor,bool pressed) {
         if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))game.choose(focus);
         if(IsKeyPressed(settings.controls.keys[std::size_t(Action::Reroll)]))game.reroll();
         if(IsKeyPressed(settings.controls.keys[std::size_t(Action::Banish)]))game.banish(focus);
-    }else if(game.phase==Phase::Paused && IsKeyPressed(KEY_Q))screen=Screen::Menu;
+    }else if(game.phase==Phase::Paused && IsKeyPressed(KEY_Q)){finishRun();screen=Screen::Menu;}
 }
 void Presentation::label(const std::string& text,int x,int y,Color color,int scale){pixel::text(text,x,y,color,scale);}
 void Presentation::outline(int x,int y,int width,int height,Color color){
@@ -316,6 +336,8 @@ int Presentation::iconFor(int definition)const{
     if(definition<0 || definition>=int(game.catalog.upgrades.size()))return 0;
     const auto& d=game.catalog.upgrades[std::size_t(definition)];
     if(d.kind==UpgradeKind::Weapon)return int(d.pattern);
+    // Gridlock retains Graviton's stable catalog ID and gravity-coil artwork.
+    if(d.id=="graviton")return 9;
     if(d.modifiers.empty())return 9;
     switch(d.modifiers.front().stat){
     case Stat::Pickup:return 9;case Stat::Cooldown:return 10;case Stat::Crit:return 11;case Stat::Growth:return 12;
@@ -360,6 +382,9 @@ void Presentation::menu(){
     centered(movement+"  Move",viewWidth/2,oy+383,Gray);
     centered(controlName(Action::Codex)+"  Evolutions",viewWidth/2,oy+408,Gray);
     if(button("SETTINGS",viewWidth-124,viewHeight-34,110,22))openSettings();
+    label("Gold: "+std::to_string(profile.gold),14,viewHeight-50,Gray);
+    const bool shortcut=std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_U)==settings.controls.keys.end();
+    if(button(shortcut?"UPGRADES [U]":"UPGRADES",14,viewHeight-34,160,22))openPermanentUpgrades();
     if(profile.bestSeconds>0)centered("Best survival: "+clockText(float(profile.bestSeconds)),viewWidth/2,oy+438,Gray);
 }
 void Presentation::hud(){
@@ -371,7 +396,7 @@ void Presentation::hud(){
     DrawRectangle(viewWidth-pixel::width(length)-12,0,pixel::width(length)+12,20,hudBackground);
     label(kills,6,6,White);
     for(int i=0;i<5;++i){
-        if(game.player.hp>float(i)*20)art.draw(pixel::Sprite::Heart,9+i*17,25);
+        if(game.player.hp>float(i)*(game.player.maxHp/5))art.draw(pixel::Sprite::Heart,9+i*17,25);
         else{
             // Raster outline uses the same source pixels as the filled hearts.
             const int x=9+i*17;pixel::line(x+1,26,x+3,26,Gray);pixel::line(x+5,26,x+6,26,Gray);
@@ -389,6 +414,8 @@ void Presentation::hud(){
                 const auto& owned=*equipment[std::size_t(i)];const auto& d=game.catalog.upgrades[std::size_t(owned.definition)];
                 art.iconSized(owned.evolved?evolutionIcon(d.pattern):iconFor(owned.definition),x+1,y+1,10);
                 centered(std::to_string(owned.rank),x+6,y+13,White);
+                if(d.id=="graviton")for(int pip=0;pip<4;++pip)
+                    DrawRectangle(x-1+pip*4,y+23,3,2,pip<game.graviton.turns?Color{108,211,255,255}:Color{25,48,64,255});
             }
         }
     }
@@ -482,39 +509,56 @@ void Presentation::result(){
     panel(viewWidth/2-180,viewHeight/2-62,360,124,won?Green:Border);
     centered(won?"YOU WON!":"GAME OVER",viewWidth/2,viewHeight/2-43,won?Green:White,2);
     centered(clockText(game.elapsed)+"    "+std::to_string(game.kills)+" kills",viewWidth/2,viewHeight/2-8,White);
+    const auto saveState=profileSaveState();
+    const bool failed=saveState==ProfileSaveState::Failed,temporary=saveState==ProfileSaveState::Blocked;
+    centered(std::string(failed || temporary?"Gold earned: +":"Gold banked: +")+std::to_string(bankedGold)+
+        (failed?" - SAVE FAILED":temporary?" - TEMPORARY":""),viewWidth/2,viewHeight/2+12,failed || temporary?Yellow:Gray);
     centered("Enter  Menu",viewWidth/2,viewHeight/2+32,Gray);
 }
 void Presentation::evolutionCodex(){
-    constexpr int cw=192,ch=102,gap=12,pad=20,menuW=cw*3+gap*2+pad*2,menuH=ch*3+gap*2+90;
-    const int mx=(viewWidth-menuW)/2,my=(viewHeight-menuH)/2;
-    DrawRectangle(mx,my,menuW,menuH,{12,12,12,255});outline(mx,my,menuW,menuH,Yellow);
-    centered("EVOLUTIONS",viewWidth/2,my+15,Yellow,2);
-    for(std::size_t i=0;i<game.catalog.evolutions.size() && i<9;++i){
-        const auto& e=game.catalog.evolutions[i];const int x=mx+pad+int(i%3)*(cw+gap),y=my+43+int(i/3)*(ch+gap);
-        const int weapon=game.catalog.find(e.weapon),passive=game.catalog.find(e.passive);int wr=0,pr=0;bool evolved=false;
-        for(const auto& owned:game.owned){if(owned.definition==weapon){wr=owned.rank;evolved=owned.evolved;}if(owned.definition==passive)pr=owned.rank;}
-        const int target=weapon>=0?game.catalog.upgrades[std::size_t(weapon)].maxRank:8;const bool ready=wr>=target && pr>0;
-        DrawRectangle(x,y,cw,ch,evolved?Color{0,24,0,255}:Color{24,24,24,255});
-        outline(x,y,cw,ch,evolved?Green:ready?Cyan:DarkGray);
-        if(weapon>=0)art.iconSized(evolutionIcon(game.catalog.upgrades[std::size_t(weapon)].pattern),x+7,y+7,24);
-        const std::string name=e.name;
-        std::istringstream words(name);std::string word,line;int nameY=y+8;
-        while(words>>word){
-            if(pixel::width(line.empty()?word:line+" "+word)>cw-44 && !line.empty()){label(line,x+38,nameY,evolved?Green:Yellow);nameY+=9;line=word;}else line=line.empty()?word:line+" "+word;
+    constexpr int cw=226,ch=84,gap=12,limit=9;
+    constexpr Color surface{12,12,12,255},card{23,23,23,255},ownedCard{30,30,30,255};
+    constexpr Color ink{226,226,226,255},muted{148,148,148,255};
+    const int mx=(viewWidth-EvolutionMenuWidth)/2,my=(viewHeight-EvolutionMenuHeight)/2;
+    const int count=std::min(limit,int(game.catalog.evolutions.size()));
+    DrawRectangle(0,0,viewWidth,viewHeight,{0,0,0,200});
+    DrawRectangle(mx,my,EvolutionMenuWidth,EvolutionMenuHeight,surface);
+    const int closeX=mx+EvolutionMenuWidth-24,closeY=my-30;
+    const bool closeHover=inside(mouse,closeX,closeY,24,24);
+    if(closeHover)DrawRectangle(closeX,closeY,24,24,card);
+    pixel::line(closeX+8,closeY+8,closeX+15,closeY+15,closeHover?ink:muted);
+    pixel::line(closeX+15,closeY+8,closeX+8,closeY+15,closeHover?ink:muted);
+
+    for(int i=0;i<count;++i){
+        const auto& evolution=game.catalog.evolutions[std::size_t(i)];
+        const int weapon=game.catalog.find(evolution.weapon),passive=game.catalog.find(evolution.passive);
+        int weaponRank=0,passiveRank=0;bool evolved=false;
+        for(const auto& owned:game.owned){
+            if(owned.definition==weapon){weaponRank=owned.rank;evolved=owned.evolved;}
+            if(owned.definition==passive)passiveRank=owned.rank;
         }
-        if(!line.empty())label(line,x+38,nameY,evolved?Green:Yellow);
-        label(evolved?"UNLOCKED":ready?"READY":"LOCKED",x+38,y+32,evolved?Green:ready?Cyan:Gray);
-        for(int r=0;r<2;++r){
-            const int def=r==0?weapon:passive;if(def<0)continue;
-            const int rank=r==0?wr:pr,goal=r==0?target:1;const Color color=rank>=goal?Green:Color{238,170,170,255};
-            art.iconSized(iconFor(def),x+7,y+51+r*19,10);
-            label(game.catalog.upgrades[std::size_t(def)].name,x+23,y+52+r*19,color);
-            const std::string counts=std::to_string(std::min(rank,goal))+"/"+std::to_string(goal);
-            label(counts,x+cw-7-pixel::width(counts),y+61+r*19,rank>=goal?Green:Gray);
+        const int x=mx+21+(i%3)*(cw+gap),y=my+16+(i/3)*(ch+gap);
+        const bool hasWeapon=weaponRank>0;
+        DrawRectangle(x,y,cw,ch,hasWeapon?ownedCard:card);
+        if(hasWeapon)DrawRectangle(x+5,y+18,2,6,muted);
+        if(weapon>=0)art.iconSized(evolutionIcon(game.catalog.upgrades[std::size_t(weapon)].pattern),x+12,y+10,24);
+        label(evolution.name,x+44,y+18,hasWeapon?ink:muted);
+        if(evolved){
+            pixel::line(x+cw-16,y+21,x+cw-14,y+23,ink);
+            pixel::line(x+cw-14,y+23,x+cw-10,y+18,ink);
+        }
+        for(int row=0;row<2;++row){
+            const int definition=row==0?weapon:passive;if(definition<0)continue;
+            const auto& upgrade=game.catalog.upgrades[std::size_t(definition)];
+            const int goal=row==0?upgrade.maxRank:1,rank=row==0?weaponRank:passiveRank;
+            const int ry=y+44+row*19;
+            const Color color=rank>0?ink:muted;
+            art.iconSized(iconFor(definition),x+12,ry,10);
+            label(upgrade.name,x+28,ry+1,color);
+            const std::string ranks=std::to_string(std::min(rank,goal))+"/"+std::to_string(goal);
+            label(ranks,x+cw-12-pixel::width(ranks),ry+1,color);
         }
     }
-    centered("Max weapon + passive + chest",viewWidth/2,my+menuH-30,White);
-    centered(controlName(Action::Codex)+" / Esc  Close",viewWidth/2,my+menuH-15,Gray);
 }
 void Presentation::chestReward(float seconds){
     const auto* reward=pendingChestReward();if(!reward)return;
@@ -564,7 +608,7 @@ void Presentation::chestReward(float seconds){
         seconds>=(landed?loot::RevealSeconds+loot::ContinueDelay:loot::IntroSeconds)?accent:Gray);
 }
 void Presentation::draw(float chestPreviewTime,float deathPreviewTime){
-    if(settingsOpen)clicked=false;
+    if(settingsOpen || codex || permanentOpen)clicked=false;
     if(screen==Screen::Menu)menu();
     else{
         world(false,deathPreviewTime);hud();
@@ -579,6 +623,7 @@ void Presentation::draw(float chestPreviewTime,float deathPreviewTime){
             DrawRectangle(0,0,viewWidth,viewHeight,Fade(Color{255,0,0,255},.3f*std::clamp((game.player.collisionClock-.7f)/.3f,0.0f,1.0f)));
     }
     if(codex)evolutionCodex();
+    if(permanentOpen)drawPermanentUpgrades();
     if(settingsOpen){
         const int x=(viewWidth-CanvasWidth)/2,y=(viewHeight-CanvasHeight)/2;
         const Vec saved=mouse;mouse.x-=float(x);mouse.y-=float(y);

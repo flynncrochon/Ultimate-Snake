@@ -48,7 +48,9 @@ def test_spawn_schedule_lifetime_permanent_trails_and_pause():
     st.step(360)
     dead = st.snapshot()
     assert dead['counts']['grey_snakes'] == 0 and dead['counts']['grey_trails'] == 1
-    assert len(dead['grey_trails'][0]['path']) == 167, dead['grey_trails']
+    # Unsafe steps may hold instead of sealing an escape. Growth still fits
+    # the same 60ms cadence and the head retires at exactly ten seconds.
+    assert 2 <= len(dead['grey_trails'][0]['path']) <= 167, dead['grey_trails']
     assert dead['grey_trails'][0]['age'] == 10
     path = dead['grey_trails'][0]['path']
     st.configure(grey_clock=179.95)
@@ -64,6 +66,104 @@ def test_spawn_schedule_lifetime_permanent_trails_and_pause():
 
 
 test_spawn_schedule_lifetime_permanent_trails_and_pause.timeout_ticks = 740
+
+
+def _drive(direction, cells):
+    for _ in range(cells):
+        before = st.player()['position']
+        for _ in range(9):
+            state = st.step(1, direction)
+            assert state['phase'] == 'playing', state
+            if state['player']['position'] != before:
+                break
+        else:
+            raise AssertionError(('route obstructed', before, direction, state))
+
+
+def test_repeated_rectangle_is_cut_across_its_upcoming_corner():
+    st.configure(grey_snakes=True, freeze_player=False, grey_next_spawn=1200)
+    st.player(position=[800,800], segments=[[800,800]], length=1, move_clock=0)
+    for _ in range(2):
+        for direction, cells in ((st.EAST,12),(st.SOUTH,10),(st.WEST,12),(st.NORTH,10)):
+            _drive(direction, cells)
+    before = st.snapshot()
+    assert before['grey_system']['predictability'] == 1, before['grey_system']
+    st.configure(grey_next_spawn=0)
+    st.step(1)
+    spawned = st.snapshot()
+    grey = spawned['grey_trails'][0]
+    assert grey['cutting'] and grey['wall_direction'][1] == 0, grey
+    assert grey['target'][1] > 800, 'Grey snake ignored the upcoming turn south'
+    first = grey['path'][0]
+    assert abs(first[0]-800)+abs(first[1]-800) >= 12*st.TILE, grey
+    for _ in range(180):
+        p = st.player()['position']
+        state = st.step(1, st.EAST if p[1] == 800 and p[0] < 896 else st.SOUTH)
+        assert state['phase'] == 'playing', state
+        if state['player']['collision_clock'] >= 0:
+            break
+    else:
+        raise AssertionError('Continuing the learned rectangle escaped the interception')
+    assert state['player']['position'][0] == 896, state['player']
+
+
+test_repeated_rectangle_is_cut_across_its_upcoming_corner.timeout_ticks = 850
+
+
+def test_straight_pressure_spawns_early_and_pause_freezes_its_history():
+    st.configure(grey_snakes=True, freeze_player=False)
+    st.player(position=[320,800], segments=[[320,800]], length=1, move_clock=0)
+    st.step(590, st.EAST)
+    before = st.snapshot()
+    assert not before['grey_trails'] and before['grey_system']['predictability'] == 1, before['grey_system']
+    st.pause()
+    st.step(120, st.NORTH)
+    assert st.snapshot()['grey_system'] == before['grey_system']
+    st.pause()
+    st.step(12, st.EAST)
+    after = st.snapshot()
+    assert len(after['grey_trails']) == 1 and after['grey_trails'][0]['cutting'], after['grey_system']
+    assert 39.99 <= after['grey_system']['spawn_time'] <= 40.1, after['grey_system']
+
+
+test_straight_pressure_spawns_early_and_pause_freezes_its_history.timeout_ticks = 730
+
+
+def _wall_leg(path, direction, cells):
+    for _ in range(cells):
+        p = path[-1]
+        path.append([p[0]+direction[0]*st.TILE, p[1]+direction[1]*st.TILE])
+
+
+def test_grey_preserves_the_last_doorway_and_player_can_escape():
+    path = [[800,720]]
+    for direction, cells in ((st.EAST,10),(st.SOUTH,20),(st.WEST,20),(st.NORTH,20),(st.EAST,8)):
+        _wall_leg(path, direction, cells)
+    st.spawn_grey_snake(path, wall=True, wall_direction=st.EAST, target=[808,720], age=9.93)
+    state = st.step(4, full=True, validate=True)
+    assert state['grey_trails'][0]['path'][-1] in ([784,712],[784,728]), state['grey_trails'][0]
+    assert [792,720] not in state['grey_trails'][0]['path'], 'Grey snake sealed the final opening'
+    st.step(1)
+    assert not st.snapshot()['grey_trails'][0]['alive']
+    st.configure(freeze_player=False)
+    st.player(position=[792,800], segments=[[792,800]], length=1, direction=st.NORTH, move_clock=0)
+    _drive(st.NORTH,20)
+    assert st.player()['position'] == [792,640], 'Player could not traverse the preserved exit'
+
+
+def test_grey_cannot_close_a_pocket_against_the_arena_edge():
+    path = [[8,720]]
+    for direction, cells in ((st.EAST,9),(st.SOUTH,20),(st.WEST,8)):
+        _wall_leg(path, direction, cells)
+    st.player(position=[40,800], segments=[[40,800]], length=1)
+    st.spawn_grey_snake(path, wall=True, wall_direction=st.WEST, target=[8,880], age=9.93)
+    state = st.step(4, full=True, validate=True)
+    assert [8,880] not in state['grey_trails'][0]['path'], state['grey_trails'][0]
+    st.step(1)
+    st.configure(freeze_player=False)
+    st.player(position=[8,800], segments=[[8,800]], length=1, direction=st.SOUTH, move_clock=0)
+    _drive(st.SOUTH,20)
+    assert st.player()['position'] == [8,960], 'Arena-edge exit was not usable'
 
 
 def test_barrier_grace_turn_recovery_and_lethal_immunity_bypass():
@@ -121,11 +221,13 @@ def test_grey_fixture_validation_is_atomic_and_reset_isolated():
     assert not st.snapshot()['grey_trails'], 'Isolated fixtures enabled scheduled grey spawning'
 
 
-def test_thirteen_permanent_trails_fit_and_overflow_is_rejected():
-    for i in range(13):
-        st.spawn_grey_snake([[600+i*24,600]], alive=False)
+def test_adaptive_run_capacity_fits_and_overflow_is_rejected():
+    capacity = st.snapshot()['grey_system']['trail_capacity']
+    assert capacity == int(st.command('hello')['run_seconds'] / 30)
+    for i in range(capacity):
+        st.spawn_grey_snake([[400+(i%10)*24,400+(i//10)*24]], alive=False)
     before = st.snapshot()
-    assert before['counts']['grey_trails'] == 13 and before['counts']['grey_barriers'] == 13
+    assert before['counts']['grey_trails'] == capacity and before['counts']['grey_barriers'] == capacity
     try:
         st.spawn_grey_snake([[600,640]], alive=False)
     except st.GameTestError:

@@ -156,7 +156,7 @@ rendering, Python, and protocol I/O and must not be presented as full-game FPS.
 Keep regression coverage for batching limits, texture/alpha order, actor caps,
 and startup/shutdown resource lifetimes. See [validation](docs/VALIDATION.md).
 
-`snake_core_stress` runs two complete 20-minute simulations and a dense fixture.
+`snake_core_stress` runs two complete 30-minute simulations and a dense fixture.
 Use it when lifecycle, progression, capacities, or scheduling changes warrant it.
 `scripts/check_render_parity.py` records/compares deterministic full-quality
 effect scenes; capture `--record before` before rebuilding the old renderer.

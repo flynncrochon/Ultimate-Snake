@@ -120,6 +120,34 @@ int main(){
             require(app.game.phase==Phase::Playing&&app.game.owned.size()==1&&app.game.owned.front().definition==expected,
                 "A stationary click did not choose the card under the cursor");
         });
+        test("evolution guide consumes clicks above upgrade and character cards",[&]{
+            Presentation app(catalog);prepare(app,catalog,false);app.game.grantXp(app.game.player.nextXp);
+            const auto offers=app.game.offers;app.codex=true;
+            for(const Vec cursor:std::vector<Vec>{{210,200},{400,200},{590,200}}){
+                app.update(FixedStep,cursor,true);drawFrame(app,target);
+                require(app.codex&&app.game.phase==Phase::LevelUp&&app.game.offers==offers&&app.game.owned.empty(),
+                    "Browsing an evolution recipe clicked an upgrade underneath it");
+            }
+            app.update(FixedStep,{760,78},true);drawFrame(app,target);
+            require(!app.codex&&app.game.phase==Phase::LevelUp&&app.game.offers==offers&&app.game.owned.empty(),
+                "The guide's close button selected an upgrade or failed to close");
+            app.screen=Screen::Menu;app.selectedCharacter=0;app.codex=true;
+            app.update(FixedStep,{604,200},true);drawFrame(app,target);
+            require(app.codex&&app.selectedCharacter==0&&app.screen==Screen::Menu,
+                "An evolution guide click selected a character underneath it");
+        });
+        test("evolution guide keyboard dismissal never confirms the covered screen",[&]{
+            Presentation app(catalog);prepare(app,catalog,false);app.game.grantXp(app.game.player.nextXp);
+            const auto offers=app.game.offers;
+            pressKey(app,KEY_TAB,{});require(app.codex&&app.simulationBlocked(),"Tab did not open and pause the evolution guide");
+            pressKey(app,KEY_ESCAPE,{});drawFrame(app,target);
+            require(!app.codex&&app.game.phase==Phase::LevelUp&&app.game.offers==offers,
+                "Escape closed the guide and also paused or chose the covered upgrade");
+            app.settings.controls.keys[std::size_t(Action::Codex)]=KEY_ENTER;
+            for(int press=0;press<2;++press){pressKey(app,KEY_ENTER,{});drawFrame(app,target);}
+            require(!app.codex&&app.game.phase==Phase::LevelUp&&app.game.offers==offers&&app.game.owned.empty(),
+                "A rebound evolution key confirmed an upgrade while opening or closing the guide");
+        });
         test("actual boss death leaves a visible collectable chest on the ground",[&]{
             Presentation app(catalog);prepare(app,catalog);const Vec chest=defeatBoss(app);
             require(app.game.chests==0&&!app.pendingChestReward()&&!app.simulationBlocked(),"Boss reward was granted before chest contact");
