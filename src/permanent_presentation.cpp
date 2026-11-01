@@ -29,7 +29,7 @@ std::string effect(PermanentUpgrade upgrade,int rank){
 }
 void Presentation::openPermanentUpgrades(){
     if(screen!=Screen::Menu)return;
-    permanentOpen=true;codex=false;permanentFocus=0;permanentMessage.clear();clicked=false;resetAudio();
+    permanentOpen=true;menuUpgradesSelected=true;codex=false;permanentFocus=0;permanentMessage.clear();clicked=false;resetAudio();
 }
 void Presentation::closePermanentUpgrades(){permanentOpen=false;clicked=false;}
 bool Presentation::purchaseUpgrade(PermanentUpgrade upgrade){

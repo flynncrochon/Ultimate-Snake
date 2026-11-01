@@ -154,9 +154,9 @@ void Game::reset(int selected,std::uint32_t runSeed,const PermanentUpgrades& inh
     damageDealt=0;experienceDropped=experienceCollected=0;
     enemies.clear();projectiles.clear();zones.clear();nestEggs.clear();miniSnakes.clear();beams.clear();cobraPits.clear();cobras.clear();grapples.clear();leviathan={};cobraOverflow=1;orbitPhase=0;ouroborosActive=false;shieldTimer=0;shieldCharges=shieldMax=shieldRank=0;shieldCooldown=10;pickups.clear();particles.clear();damageNumbers.clear();owned.clear();banished.clear();events.clear();offers.fill(-1);
     enemies.reserve(EnemyCap);projectiles.reserve(ProjectileCap);zones.reserve(128);pickups.reserve(PickupCap+3);particles.reserve(1800);damageNumbers.reserve(180);owned.reserve(8);banished.reserve(catalog.upgrades.size());
-    // A first-use gravity detonation can defeat the entire enemy pool at once.
+    // A first-use detonation can clear the enemy and water pools together.
     // Preserve every kill event without growing this vector during combat.
-    events.reserve(EnemyCap+128);
+    events.reserve(EnemyCap+FloodCapacity+128);
     notice.reserve(128);
     snakeDeaths.clear();snakeDeaths.reserve(SnakeDeathCapacity);nextSnakeDeath=0;playerDied=false;
     greySnakes.reset();greySnakes.enabled=true;
@@ -280,6 +280,7 @@ void Game::damageEnemy(Enemy& e,double damage,bool critical) {
     if(!e.alive || e.grabbed || damage<=0) return;
     if(e.kind==EnemyKind::Flood){
         flood.repel(e.position,18,sub(e.position,player.position),50+float(std::min(60.0,damage*.15)));
+        damageDealt+=flood.damage(e.position,18,damage);
         if(events.size()<100)events.push_back({Event::Hit});return;
     }
     damageDealt+=std::min(e.hp,damage);
@@ -291,15 +292,7 @@ void Game::damageEnemy(Enemy& e,double damage,bool critical) {
     // Consumption target can be finished by any equipped weapon.
     for(auto& beam:beams)if(beam.evolved && !beam.ancient && beam.target==e.id){beam.pendingAbsorb=true;beam.position=e.position;beam.target=0;}
     const int value=e.experience>0?e.experience:e.kind==EnemyKind::Boss?30:e.kind==EnemyKind::Splitter?3:1;
-    if(!e.devoured)experienceDropped+=std::uint64_t(value);
-    if(!e.devoured && pickups.size()<PickupCap) pickups.push_back({gridPosition(e.position),value,PickupKind::Experience});
-    else if(!e.devoured) {
-        auto aggregate=std::find_if(pickups.begin(),pickups.end(),[](const Pickup& p){return p.kind==PickupKind::Experience;});
-        if(aggregate!=pickups.end()) aggregate->value+=value;
-        // Reserve one aggregate XP entry beyond the normal pool and two boss
-        // chest slots. Heart healing and chest values must never absorb XP.
-        else pickups.push_back({gridPosition(e.position),value,PickupKind::Experience});
-    }
+    if(!e.devoured)dropExperience(e.position,value);
     if(e.kind==EnemyKind::Boss) {
         ++bossesKilled;
         auto chest=std::find_if(pickups.begin(),pickups.end(),[](const Pickup& p){return p.kind==PickupKind::Chest;});
@@ -332,6 +325,17 @@ void Game::damageEnemy(Enemy& e,double damage,bool critical) {
     }
     else if(random(0,1)<.025f && pickups.size()<PickupCap) pickups.push_back({gridPosition(add(e.position,{4,0})),20,PickupKind::Heart});
     for(int i=0;i<5 && particles.size()<1600;++i) {const float a=random(0,2*Pi),speed=random(8,35);particles.push_back({e.position,{std::cos(a)*speed,std::sin(a)*speed},.35f,.35f,e.kind==EnemyKind::Boss?3:e.kind==EnemyKind::Splitter?2:1});particles.back().snakeDeath=true;}
+}
+
+void Game::dropExperience(Vec position,int value){
+    experienceDropped+=std::uint64_t(value);
+    if(pickups.size()>=PickupCap){
+        auto aggregate=std::find_if(pickups.begin(),pickups.end(),[](const Pickup& p){return p.kind==PickupKind::Experience;});
+        if(aggregate!=pickups.end()){aggregate->value+=value;return;}
+        // Reserve one aggregate XP entry beyond the normal pool and two boss
+        // chest slots. Heart healing and chest values must never absorb XP.
+    }
+    pickups.push_back({gridPosition(position),value,PickupKind::Experience});
 }
 
 SnakeDeath* Game::recordSnakeDeath(const SnakeDeath& death) {
@@ -540,6 +544,11 @@ void Game::update(float dt,const Input& input) {
             if(hits[index].enemy<0){
                 const Vec impact=add(start,mul(delta,hits[index].time));
                 flood.repel(impact,std::max(14.0f,p.radius*2),p.velocity,65+float(std::min(50.0,p.damage*.1)));
+                const bool critical=p.critResolved?p.critical:(p.critical || random(0,1)<s.crit);
+                const double pierceFactor=p.gatling?(p.impacts==0?1.0:p.impacts==1?.7:.5):1.0;
+                const double baseDamage=p.sourceDamage>0?p.sourceDamage:p.damage,damageMultiplier=p.sourceDamage>0?p.damageMultiplier:1;
+                const double damage=p.cobraSpit?p.damage*(critical?2:1):std::round(baseDamage*(1+p.damageRamp*p.impacts)*pierceFactor*(critical?2:1)*damageMultiplier);
+                damageDealt+=flood.damage(impact,p.radius+.001f,damage);
                 if(p.hitCount<p.hitIds.size())p.hitIds[p.hitCount++]=flood.enemyId;p.lastHit=flood.enemyId;++p.impacts;
                 if(p.hitCount>=p.hitIds.size())p.alive=false;
                 else if(p.bounces>0){
@@ -610,9 +619,10 @@ void Game::update(float dt,const Input& input) {
         if(z.life<=0 && z.pattern==Pattern::Mortar && z.evolved) {
             const float blastRadius=z.detonationDamage>0?z.radius:z.radius*1.35f;
             flood.repel(z.position,blastRadius,{},115);
+            if(flood.contact(z.position,z.position,blastRadius)<=1){const bool critical=z.canCrit && random(0,1)<s.crit;damageDealt+=flood.damage(z.position,blastRadius,(z.detonationDamage>0?z.detonationDamage:z.damage*2.5f)*(critical?2:1));}
             grid.query(z.position,blastRadius+10,[&](int index){
                 auto& enemy=enemies[index];
-                if(enemy.alive && distanceSq(enemy.position,z.position)<=(blastRadius+enemy.radius)*(blastRadius+enemy.radius)) {const bool critical=z.canCrit && random(0,1)<s.crit;damageEnemy(enemy,(z.detonationDamage>0?z.detonationDamage:z.damage*2.5f)*(critical?2:1),critical);}
+                if(enemy.alive && enemy.kind!=EnemyKind::Flood && distanceSq(enemy.position,z.position)<=(blastRadius+enemy.radius)*(blastRadius+enemy.radius)) {const bool critical=z.canCrit && random(0,1)<s.crit;damageEnemy(enemy,(z.detonationDamage>0?z.detonationDamage:z.damage*2.5f)*(critical?2:1),critical);}
             });
             for(int count=0;count<20 && particles.size()<1600;++count) {
                 const float angle=random(0,2*Pi),speed=random(20,75);
@@ -624,14 +634,15 @@ void Game::update(float dt,const Input& input) {
         if(z.life<=0 || z.tick>0 || z.damage<=0) continue;
         z.tick=z.tickInterval;
         if(z.pattern!=Pattern::Shot)flood.repel(z.position,z.radius,{},z.pattern==Pattern::Mortar?48.0f:65.0f);
+        if(z.pattern!=Pattern::Shot && flood.contact(z.position,z.position,z.radius)<=1){const bool critical=z.canCrit && random(0,1)<s.crit;const double scaled=z.damage*z.damageFactor;damageDealt+=flood.damage(z.position,z.radius,z.pattern==Pattern::Nova&&z.evolved?std::round(scaled*(critical?2:1)):std::round(scaled)*(critical?2:1));}
         grid.query(z.position,z.radius+10,[&](int i){auto& e=enemies[i];if(!e.alive || distanceSq(e.position,z.position)>(z.radius+e.radius)*(z.radius+e.radius)) return;
-            if(e.grabbed || z.pattern==Pattern::Shot)return;
+            if(e.grabbed || e.kind==EnemyKind::Flood || z.pattern==Pattern::Shot)return;
             const bool critical=z.canCrit && random(0,1)<s.crit;const double scaled=z.damage*z.damageFactor;damageEnemy(e,z.pattern==Pattern::Nova&&z.evolved?std::round(scaled*(critical?2:1)):std::round(scaled)*(critical?2:1),critical);
         });
         if(z.singleHit)z.damage=0;
     }
     for(std::size_t index=0;index<enemies.size();++index)if(forced[index] && enemies[index].alive)placeEnemy(enemies[index],forcedPositions[index]);
-    updateFlood(dt,playerFrameStart);
+    updateFlood(dt,playerFrameStart,s.armor);
     if(phase==Phase::Dead)return;
     const SpatialGrid contactGrid(enemies);
     if(player.invulnerable<=0) {

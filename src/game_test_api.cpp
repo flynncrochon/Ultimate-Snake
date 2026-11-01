@@ -261,7 +261,7 @@ Json GameTestSession::snapshot(bool full)const{
         {"age",game.flood.age},{"warning",game.flood.warning},{"lifetime",game.flood.lifetime},{"dangerous",game.flood.dangerous()},{"waves",game.flood.waveCount()},{"capacity",FloodCapacity},
         {"center",vec(game.flood.center)},{"direction",vec(game.flood.direction)},{"enemy_id",game.flood.enemyId},{"repulsions",game.flood.repulsions}};
     if(!full)return result;
-    result["water_particles"]=Json::array();for(const auto& water:game.flood.particles)result["water_particles"].push_back({{"position",vec(water.position)},{"previous",vec(water.previous)},{"velocity",vec(water.velocity)},{"foam",water.foam},{"age",water.age},{"warning",water.warning},{"wave",water.wave}});
+    result["water_particles"]=Json::array();for(const auto& water:game.flood.particles)result["water_particles"].push_back({{"position",vec(water.position)},{"previous",vec(water.previous)},{"velocity",vec(water.velocity)},{"foam",water.foam},{"age",water.age},{"warning",water.warning},{"wave",water.wave},{"hp",water.hp}});
     result["water_impacts"]=Json::array();
     result["grey_trails"]=Json::array();
     for(const auto& snake:game.greySnakes.trails){
@@ -328,7 +328,7 @@ Json GameTestSession::validate()const{
     for(const auto& enemy:game.enemies)if(enemy.alive && enemy.kind==EnemyKind::Flood)++floodHandles;
     if(floodHandles!=(game.flood.active()?1:0))problem("Flood target lifetime mismatch");
     bool hazardous=false;
-    for(const auto& water:game.flood.particles){finite(water.position,"water");finite(water.velocity,"water velocity");if(!std::isfinite(water.foam) || water.foam<0 || water.foam>1)problem("Invalid water foam");if(!std::isfinite(water.age) || !std::isfinite(water.warning) || water.age<0 || water.warning<0 || !water.wave)problem("Invalid water lifetime");hazardous=hazardous || game.flood.dangerous(water);}
+    for(const auto& water:game.flood.particles){finite(water.position,"water");finite(water.velocity,"water velocity");if(!std::isfinite(water.foam) || water.foam<0 || water.foam>1)problem("Invalid water foam");if(!std::isfinite(water.age) || !std::isfinite(water.warning) || water.age<0 || water.warning<0 || !water.wave)problem("Invalid water lifetime");if(!std::isfinite(water.hp) || water.hp<=0 || water.hp>FloodHealth)problem("Invalid water HP");hazardous=hazardous || game.flood.dangerous(water);}
     if(hazardous!=game.flood.dangerous())problem("Flood danger state mismatch");
     std::vector<std::uint32_t> ids;ids.reserve(game.enemies.size());
     for(const auto& enemy:game.enemies){grid(enemy.position,"enemy");if(!std::isfinite(enemy.hp))problem("Non-finite enemy HP");if(!std::isfinite(enemy.gravityHold)||enemy.gravityHold<0||enemy.gravityHold>1.5f)problem("Invalid gravity hold");if(enemy.trailSize<0||enemy.trailSize>8)problem("Invalid enemy trail size");else for(int i=0;i<enemy.trailSize;++i)grid(enemy.trail[std::size_t(i)],"enemy segment");ids.push_back(enemy.id);}

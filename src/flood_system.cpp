@@ -10,6 +10,7 @@ namespace snake {
 namespace {
 constexpr float Support = 10, Spacing = 4.4f, MaximumSpeed = 125;
 constexpr int HashSide = 160, Neighbors = 48;
+constexpr int FirstWaveSamples = 128, SamplesPerMinute = 32, MaximumWaveSamples = 640;
 float square(Vec p){return p.x*p.x+p.y*p.y;}
 Vec add(Vec a,Vec b){return {a.x+b.x,a.y+b.y};}
 Vec sub(Vec a,Vec b){return {a.x-b.x,a.y-b.y};}
@@ -27,8 +28,8 @@ float sweep(Vec a,Vec b,Vec p,float radius){
 }
 bool headContact(Vec from,Vec to,Vec head){
     // The rendered head is a square. Sweep the water disc against its rounded
-    // Minkowski boundary so even a corner touch is lethal, without a larger
-    // square approximation killing the player across a visible dry corner.
+    // Minkowski boundary so even a corner touch registers, without a larger
+    // square approximation hurting the player across a visible dry corner.
     constexpr float half=2.8f,reach=half+FloodRadius;
     from=sub(from,head);to=sub(to,head);
     if(std::min(from.x,to.x)>reach || std::max(from.x,to.x)<-reach || std::min(from.y,to.y)>reach || std::max(from.y,to.y)<-reach)return false;
@@ -70,10 +71,10 @@ FloodSystem& FloodSystem::operator=(const FloodSystem& other){
     if(this==&other)return *this;
     particles=other.particles;center=other.center;direction=other.direction;age=other.age;warning=other.warning;lifetime=other.lifetime;
     clock=other.clock;nextSpawn=other.nextSpawn;enemyId=other.enemyId;serial=other.serial;repulsions=other.repulsions;enabled=other.enabled;
-    hazardous=other.hazardous;
+    hazards=other.hazards;
     *storage=*other.storage;return *this;
 }
-void FloodSystem::reset(){particles.clear();center={};direction={1,0};age=0;warning=1.5f;lifetime=FloodLifetime;clock=0;nextSpawn=FloodFirstSeconds;enemyId=serial=repulsions=0;hazardous=false;}
+void FloodSystem::reset(){particles.clear();center={};direction={1,0};age=0;warning=1.5f;lifetime=FloodLifetime;clock=0;nextSpawn=FloodFirstSeconds;enemyId=serial=repulsions=0;hazards=0;}
 std::size_t FloodSystem::waveCount() const {
     std::size_t count=0;std::uint32_t previous=0;
     for(const auto& p:particles)if(p.wave!=previous){++count;previous=p.wave;}
@@ -84,8 +85,8 @@ bool FloodSystem::start(Vec position,Vec heading,int count,float warningSeconds)
        !std::isfinite(heading.x) || !std::isfinite(heading.y) || !std::isfinite(warningSeconds) || warningSeconds<0 ||
        position.x<Tile || position.y<Tile || position.x>ArenaSize-Tile || position.y>ArenaSize-Tile)return false;
     const Vec incoming=unit(heading);
-    if(!active()){direction=incoming;center=position;age=0;warning=warningSeconds;repulsions=0;hazardous=false;}
-    ++serial;hazardous=hazardous || (warningSeconds==0 && lifetime>0);
+    if(!active()){direction=incoming;center=position;age=0;warning=warningSeconds;repulsions=0;}
+    ++serial;
     const Vec tangent{-incoming.y,incoming.x};
     const int width=std::min({count,48,std::max(1,int(std::ceil(std::sqrt(float(count)*3))))});
     const int depth=(count+width-1)/width;
@@ -103,8 +104,9 @@ bool FloodSystem::start(Vec position,Vec heading,int count,float warningSeconds)
     rebuildIndex();return true;
 }
 void FloodSystem::rebuildIndex(){
-    auto& s=*storage;s.heads.fill(-1);s.minimum={ArenaSize,ArenaSize};s.maximum={};
+    auto& s=*storage;s.heads.fill(-1);s.minimum={ArenaSize,ArenaSize};s.maximum={};hazards=0;
     for(std::size_t i=0;i<particles.size();++i){
+        if(dangerous(particles[i]))++hazards;
         const Vec p=particles[i].position;const int cell=hashCell(p.y)*HashSide+hashCell(p.x);
         s.next[i]=s.heads[std::size_t(cell)];s.heads[std::size_t(cell)]=std::int16_t(i);
         s.minimum.x=std::min(s.minimum.x,p.x);s.minimum.y=std::min(s.minimum.y,p.y);
@@ -114,6 +116,7 @@ void FloodSystem::rebuildIndex(){
 Vec FloodSystem::nearest(Vec from) const {
     Vec result=center;float best=std::numeric_limits<float>::max();
     for(const auto& p:particles){
+        if(p.hp<=0)continue;
         if(dangerous() && !dangerous(p))continue;
         const float d=square(sub(p.position,from));if(d<best){best=d;result=p.position;}
     }
@@ -139,14 +142,25 @@ void FloodSystem::repel(Vec position,float radius,Vec heading,float strength){
     if(hit)++repulsions;
 }
 
-bool FloodSystem::update(float dt,const Player& player,const std::vector<Enemy>& enemies,const GreySnakeSystem& grey,Vec headStart){
+double FloodSystem::damage(Vec position,float radius,double amount){
+    if(!dangerous() || radius<0 || amount<=0 || !std::isfinite(amount))return 0;
+    double applied=0;const float reach=radius+FloodRadius;
+    storage->query(position,position,reach,[&](std::size_t i){auto& p=particles[i];
+        if(!dangerous(p) || square(sub(p.position,position))>reach*reach)return;
+        const double hit=std::min(double(p.hp),amount);p.hp-=float(hit);applied+=hit;
+        if(p.hp<=0)--hazards;
+    });
+    return applied;
+}
+
+bool FloodSystem::update(float dt,const Player& player,const GreySnakeSystem& grey,Vec headStart){
     if(!active())return false;
     age+=dt;
     for(auto& p:particles){p.previous=p.position;p.age+=dt;}
     const auto oldCount=particles.size();
-    particles.erase(std::remove_if(particles.begin(),particles.end(),[&](const WaterParticle& p){return p.age>=lifetime+1;}),particles.end());
-    hazardous=false;float movingDt=0;
-    for(const auto& p:particles){hazardous=hazardous || dangerous(p);movingDt=std::max(movingDt,std::min(dt,std::max(0.0f,p.age-p.warning)));}
+    particles.erase(std::remove_if(particles.begin(),particles.end(),[&](const WaterParticle& p){return p.hp<=0 || p.age>=lifetime+1;}),particles.end());
+    hazards=0;float movingDt=0;
+    for(const auto& p:particles){if(dangerous(p))++hazards;movingDt=std::max(movingDt,std::min(dt,std::max(0.0f,p.age-p.warning)));}
     if(!active())return false;
     if(particles.size()!=oldCount)rebuildIndex();
     // New warnings never freeze, protect or reset water already in play.
@@ -157,19 +171,15 @@ bool FloodSystem::update(float dt,const Player& player,const std::vector<Enemy>&
         if(x>=0&&y>=0&&x<ArenaTiles&&y<ArenaTiles)s.obstacles[std::size_t(y*ArenaTiles+x)]=std::max(type,s.obstacles[std::size_t(y*ArenaTiles+x)]);
     };
     // The head is deliberately excluded. Side and tail contact redirect water;
-    // the head instead uses an unconditional swept lethal test below.
+    // the head instead uses a swept contact test below.
     for(std::size_t i=1;i<player.segments.size();++i)mark(player.segments[i],2);
-    for(const auto& e:enemies)if(e.alive && e.kind!=EnemyKind::Flood){
-        const std::uint8_t type=e.kind==EnemyKind::Boss?3:1;mark(e.position,type);
-        for(int i=0;i<e.trailSize;++i)mark(e.trail[std::size_t(i)],type);
-    }
-    bool killed=false;
+    bool touching=false;
     // A moving head must not tunnel through a stationary leading edge. During
-    // the warning only the newly active endpoint can be lethal.
+    // the warning only the newly active endpoint can deal damage.
     s.query(headStart,player.position,FloodRadius+2.8f,[&](std::size_t i){
         const auto& p=particles[i];if(!dangerous(p))return;
         const Vec from=p.age-dt<p.warning?player.position:headStart;
-        if(headContact(sub(p.position,from),sub(p.position,player.position),{}))killed=true;
+        if(headContact(sub(p.position,from),sub(p.position,player.position),{}))touching=true;
     });
     center={};int flowing=0;
     for(const auto& p:particles)if(p.age>=p.warning){center=add(center,p.position);++flowing;}
@@ -212,14 +222,14 @@ bool FloodSystem::update(float dt,const Player& player,const std::vector<Enemy>&
             const float step=std::min(dt,std::max(0.0f,p.age-p.warning))/Substeps;
             p.velocity=limit(add(p.velocity,mul(s.accelerations[i],step)),MaximumSpeed);
             p.position=add(p.position,mul(p.velocity,step));p.foam=std::max(0.0f,p.foam-step*.65f);
-            // All obstacles use a cell lookup. Dense combat never adds an
-            // enemies-times-particles collision loop or a growing contact list.
+            // Only the player's body and grey barriers obstruct the flow.
+            // Enemy snakes pass through water without affecting either actor.
             const int cx=int(std::lround(p.position.x/Tile)),cy=int(std::lround(p.position.y/Tile));
             for(int y=std::max(1,cy-1);y<=std::min(ArenaTiles-2,cy+1);++y)
                 for(int x=std::max(1,cx-1);x<=std::min(ArenaTiles-2,cx+1);++x){
                     const auto cell=std::size_t(y*ArenaTiles+x);const auto type=s.obstacles[cell];
                     if(!type && !grey.owners[cell])continue;
-                    const float half=grey.owners[cell]?4.0f:type==3?3.0f:type==2?2.8f:2.2f;
+                    const float half=grey.owners[cell]?4.0f:2.8f;
                     const Vec obstacle{float(x*Tile),float(y*Tile)};
                     const Vec delta=sub(p.position,obstacle);const float reach=half+FloodRadius;
                     const float px=reach-std::abs(delta.x),py=reach-std::abs(delta.y);if(px<=0 || py<=0)continue;
@@ -232,11 +242,11 @@ bool FloodSystem::update(float dt,const Player& player,const std::vector<Enemy>&
             constexpr float minimum=Tile+FloodRadius,maximum=ArenaSize-Tile-FloodRadius;
             if(p.position.x<minimum || p.position.x>maximum){p.position.x=std::clamp(p.position.x,minimum,maximum);p.velocity.x=-p.velocity.x*.65f;p.foam=1;}
             if(p.position.y<minimum || p.position.y>maximum){p.position.y=std::clamp(p.position.y,minimum,maximum);p.velocity.y=-p.velocity.y*.65f;p.foam=1;}
-            if(!killed && dangerous(p) && headContact(start,p.position,player.position))killed=true;
+            if(!touching && dangerous(p) && headContact(start,p.position,player.position))touching=true;
         }
     }
     rebuildIndex();
-    return killed;
+    return touching;
 }
 
 bool Game::spawnFlood(Vec position,Vec heading,int count,float warningSeconds){
@@ -245,7 +255,8 @@ bool Game::spawnFlood(Vec position,Vec heading,int count,float warningSeconds){
     if(!flood.start(position,heading,count,warningSeconds))return false;
     if(joining){notice="FLOOD INCOMING - SHOOT IT BACK";noticeTime=4;return true;}
     Enemy target;target.id=nextEnemyId++;target.kind=EnemyKind::Flood;target.trailSize=0;target.speed=0;
-    // Water is displaced, never devoured, split or converted into loot.
+    // This is a targeting handle; health and loot belong to the local samples.
+    // It must never be devoured or split like an ordinary snake.
     target.hp=target.maxHp=1e30;target.position=flood.nearest(player.position);target.radius=FloodRadius;
     placeEnemy(target,target.position,true);flood.enemyId=target.id;enemies.push_back(target);
     notice="FLOOD INCOMING - SHOOT IT BACK";noticeTime=4;return true;
@@ -253,6 +264,11 @@ bool Game::spawnFlood(Vec position,Vec heading,int count,float warningSeconds){
 void Game::directFlood(float dt){
     flood.clock+=dt;
     if(flood.enabled && flood.clock>=flood.nextSpawn){
+        // Grow from a small first-minute wave to full volume at minute 17.
+        // Use the scheduled simulation time, independent of kills/fixture waves.
+        const int growth=int(std::clamp((flood.nextSpawn-FloodFirstSeconds)/FloodIntervalSeconds,
+                                       0.0,double((MaximumWaveSamples-FirstWaveSamples)/SamplesPerMinute)));
+        const int count=FirstWaveSamples+growth*SamplesPerMinute;
         flood.nextSpawn+=FloodIntervalSeconds;
         if(!flood.active() && enemies.size()>=1800){
             const auto ordinary=std::find_if(enemies.begin(),enemies.end(),[](const Enemy& e){return e.alive && e.kind!=EnemyKind::Boss && e.kind!=EnemyKind::Flood;});
@@ -263,15 +279,30 @@ void Game::directFlood(float dt){
         Vec heading=headings[std::size_t(flood.serial)%headings.size()];
         Vec at{sub(player.position,mul(heading,175))};
         if(at.x<60 || at.y<60 || at.x>ArenaSize-60 || at.y>ArenaSize-60){heading=mul(heading,-1);at=sub(player.position,mul(heading,175));}
-        spawnFlood(at,heading);
+        spawnFlood(at,heading,count);
     }
 }
-void Game::updateFlood(float dt,Vec headStart){
-    const bool killed=flood.update(dt,player,enemies,greySnakes,headStart);
+void Game::updateFlood(float dt,Vec headStart,int armor){
+    // Resolve each destroyed sample once, then compact the shared pool. Natural
+    // expiry, warnings and harmless impulses cannot produce rewards.
+    for(const auto& p:flood.particles)if(p.hp<=0){
+        ++kills;events.push_back({Event::Kill});dropExperience(p.position,1);
+        if(random(0,1)<.025f && pickups.size()<1400)pickups.push_back({gridPosition(p.position),20,PickupKind::Heart});
+    }
+    const bool touching=flood.update(dt,player,greySnakes,headStart);
     for(auto& e:enemies)if(e.kind==EnemyKind::Flood){
         e.alive=flood.active() && e.id==flood.enemyId;
         if(e.alive){e.position=e.previous=gridPosition(flood.nearest(player.position));e.grabbed=false;e.devoured=false;}
     }
-    if(killed){player.hp=0;phase=Phase::Dead;playerDied=true;notice="THE FLOOD CLAIMED YOUR HEAD";noticeTime=5;shake=3;events.push_back({Event::Hurt});}
+    if(touching && player.invulnerable<=0){
+        // Share normal contact immunity so joined waves and dense samples
+        // cannot multiply damage within the same second.
+        if(shieldCharges>0){--shieldCharges;if(shieldTimer<=0)shieldTimer=shieldCooldown;player.invulnerable=.25f;}
+        else{
+            player.hp=std::max(0.0f,player.hp-std::max(3.0f,FloodContactDamage-float(armor)));
+            player.invulnerable=1.0f;shake=3;events.push_back({Event::Hurt});
+            if(player.hp<=0){phase=Phase::Dead;playerDied=true;notice="THE FLOOD CLAIMED YOUR HEAD";noticeTime=5;}
+        }
+    }
 }
 }

@@ -144,7 +144,7 @@ void Presentation::startRun(std::uint32_t seed) {
     motionHistory.clear();interpolateMotion=false;renderFraction=1;
     if(seed==0)seed=std::uint32_t(GetTime()*1000.0)^0x5EEDu;
     game.reset(selectedCharacter,seed,profile.upgrades);screen=Screen::Countdown;countdown=1;codex=false;recorded=false;focus=0;
-    permanentOpen=false;runStarted=true;bankedGold=0;
+    permanentOpen=false;menuUpgradesSelected=false;runStarted=true;bankedGold=0;
     acknowledgedChest=revealingChest=0;rewardTime=0;reelTicker.reset();deathSeconds=0;
     // Begin the first visual cell immediately when the countdown finishes.
     game.player.moveClock=game.player.moveInterval;
@@ -242,9 +242,15 @@ void Presentation::update(float dt,Vec cursor,bool pressed) {
     }
     if(screen==Screen::Menu){
         if(IsKeyPressed(KEY_U) && std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_U)==settings.controls.keys.end()){openPermanentUpgrades();return;}
-        if(IsKeyPressed(KEY_RIGHT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Right)]))selectedCharacter=(selectedCharacter+1)%4;
-        if(IsKeyPressed(KEY_LEFT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Left)]))selectedCharacter=(selectedCharacter+3)%4;
-        if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER))startRun();
+        if(IsKeyPressed(KEY_DOWN) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Down)]))menuUpgradesSelected=true;
+        else if(IsKeyPressed(KEY_UP) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Up)]))menuUpgradesSelected=false;
+        if(!menuUpgradesSelected){
+            if(IsKeyPressed(KEY_RIGHT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Right)]))selectedCharacter=(selectedCharacter+1)%4;
+            if(IsKeyPressed(KEY_LEFT) || IsKeyPressed(settings.controls.keys[std::size_t(Action::Left)]))selectedCharacter=(selectedCharacter+3)%4;
+        }
+        if(IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER)){
+            if(menuUpgradesSelected)openPermanentUpgrades();else startRun();
+        }
 #ifndef __EMSCRIPTEN__
         if(IsKeyPressed(KEY_ESCAPE))quit=true;
 #endif
@@ -351,7 +357,7 @@ void Presentation::menu(){
     centered("CHOOSE YOUR SERPENT",viewWidth/2,oy+57,Gray);
     const int cw=124,ch=250,gap=12,total=cw*4+gap*3,start=(viewWidth-total)/2,cy=oy+81;
     for(int i=0;i<4;++i){
-        const int x=start+i*(cw+gap),cx=x+cw/2;const bool selected=i==selectedCharacter;
+        const int x=start+i*(cw+gap),cx=x+cw/2;const bool selected=!menuUpgradesSelected && i==selectedCharacter;
         DrawRectangle(x,cy,cw,ch,selected?Color{20,20,20,255}:Color{15,15,15,255});
         DrawRectangleLinesEx({float(x),float(cy),float(cw),float(ch)},selected?2.0f:1.0f,selected?White:Border);
         BeginScissorMode((x+2)*pixelScale,(cy+2)*pixelScale,(cw-4)*pixelScale,(ch-4)*pixelScale);
@@ -374,18 +380,25 @@ void Presentation::menu(){
         wrappedCentered(Passives[i],cx,cy+202,cw-12,Green,2,11);
         wrappedCentered(PassiveDescriptions[i],cx,cy+220,cw-12,White,2,11);
         EndScissorMode();
-        if(clicked && inside(mouse,x,cy,cw,ch)){if(selected)startRun();else selectedCharacter=i;}
+        if(clicked && inside(mouse,x,cy,cw,ch)){
+            if(selected)startRun();else{selectedCharacter=i;menuUpgradesSelected=false;}
+        }
     }
-    centered("Left / Right  Select    Enter  Start",viewWidth/2,oy+358,White);
+    const int upgradeWidth=208,upgradeHeight=30,upgradeX=(viewWidth-upgradeWidth)/2,upgradeY=oy+347;
+    const bool upgradeHover=inside(mouse,upgradeX,upgradeY,upgradeWidth,upgradeHeight);
+    const bool shortcut=std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_U)==settings.controls.keys.end();
+    DrawRectangle(upgradeX,upgradeY,upgradeWidth,upgradeHeight,menuUpgradesSelected?Color{20,20,20,255}:Color{15,15,15,255});
+    DrawRectangleLinesEx({float(upgradeX),float(upgradeY),float(upgradeWidth),float(upgradeHeight)},menuUpgradesSelected?2.0f:1.0f,menuUpgradesSelected?White:Border);
+    centered(shortcut?"UPGRADES [U]":"UPGRADES",viewWidth/2,upgradeY+7,White,2);
+    if(clicked && upgradeHover)openPermanentUpgrades();
+    centered(menuUpgradesSelected?"Up  Back to snakes    Enter  Open upgrades":"Left / Right  Select    Down  Upgrades    Enter  Start",viewWidth/2,oy+394,White);
     const bool wasd=settings.controls.keys[0]==KEY_W&&settings.controls.keys[1]==KEY_S&&settings.controls.keys[2]==KEY_A&&settings.controls.keys[3]==KEY_D;
     const std::string movement=wasd?(settings.controls.alternateArrows?"WASD / Arrows":"WASD"):controlName(Action::Up)+" / "+controlName(Action::Left)+" / "+controlName(Action::Down)+" / "+controlName(Action::Right);
-    centered(movement+"  Move",viewWidth/2,oy+383,Gray);
-    centered(controlName(Action::Codex)+"  Evolutions",viewWidth/2,oy+408,Gray);
+    centered(movement+"  Move",viewWidth/2,oy+415,Gray);
+    centered(controlName(Action::Codex)+"  Evolutions",viewWidth/2,oy+436,Gray);
     if(button("SETTINGS",viewWidth-124,viewHeight-34,110,22))openSettings();
-    label("Gold: "+std::to_string(profile.gold),14,viewHeight-50,Gray);
-    const bool shortcut=std::find(settings.controls.keys.begin(),settings.controls.keys.end(),KEY_U)==settings.controls.keys.end();
-    if(button(shortcut?"UPGRADES [U]":"UPGRADES",14,viewHeight-34,160,22))openPermanentUpgrades();
-    if(profile.bestSeconds>0)centered("Best survival: "+clockText(float(profile.bestSeconds)),viewWidth/2,oy+438,Gray);
+    label("Gold: "+std::to_string(profile.gold),14,viewHeight-27,Gray);
+    if(profile.bestSeconds>0)centered("Best survival: "+clockText(float(profile.bestSeconds)),viewWidth/2,oy+459,Gray);
 }
 void Presentation::hud(){
     constexpr Color hudBackground{12,12,12,255};
@@ -395,15 +408,12 @@ void Presentation::hud(){
     DrawRectangle((viewWidth-timeWidth)/2,0,timeWidth,27,hudBackground);
     DrawRectangle(viewWidth-pixel::width(length)-12,0,pixel::width(length)+12,20,hudBackground);
     label(kills,6,6,White);
-    for(int i=0;i<5;++i){
-        if(game.player.hp>float(i)*(game.player.maxHp/5))art.draw(pixel::Sprite::Heart,9+i*17,25);
-        else{
-            // Raster outline uses the same source pixels as the filled hearts.
-            const int x=9+i*17;pixel::line(x+1,26,x+3,26,Gray);pixel::line(x+5,26,x+6,26,Gray);
-            pixel::line(x,27,x,29,Gray);pixel::line(x+7,27,x+7,29,Gray);
-            pixel::line(x,29,x+3,32,Gray);pixel::line(x+7,29,x+3,32,Gray);
-        }
-    }
+    const float health=std::clamp(game.player.hp/std::max(1.0f,game.player.maxHp),0.0f,1.0f);
+    const int healthWidth=health>0?std::max(1,int(82*health)):0;
+    DrawRectangle(6,23,84,10,Border);
+    DrawRectangle(7,24,82,8,{40,20,24,255});
+    DrawRectangle(7,24,healthWidth,8,{214,55,65,255});
+    DrawRectangle(7,24,healthWidth,1,{255,110,119,255});
     for(int row=0;row<2;++row){
         const int y=row==0?37:62;
         std::array<const OwnedUpgrade*,4> equipment{};int count=0;

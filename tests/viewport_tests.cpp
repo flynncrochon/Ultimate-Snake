@@ -72,6 +72,8 @@ int main(){
             app.update(FixedStep,{675,190},true);require(app.settingsTabIndex()==2,"Centered settings tab click missed its displayed position");
             draw(app,wide,false);Capture image(wide.value);image.save("viewport-settings.png");
             app.update(FixedStep,{600,547},true);require(!app.settingsOpen,"Centered settings Cancel button missed its displayed position");
+            app.update(FixedStep,{600,487},true);draw(app,wide,false);
+            require(app.permanentUpgradesOpen() && app.screen==Screen::Menu,"Centered upgrade card missed its expanded viewport position");
         });
         test("evolution guide stays centered sharp and clickable at integer zoom",[&]{
             Presentation app(catalog);fixture(app);app.codex=true;app.setViewport(1200,700);

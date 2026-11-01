@@ -193,6 +193,23 @@ int main(int argc,char** argv){
                     player.previousSegments=player.segments;
                     app.game.owned.push_back({catalog.find("serpents_scales"),8,false,0});app.game.shieldCharges=3;
                 }
+                if(flood && moving){
+                    // Enemy bodies no longer shelter the head. Use a real,
+                    // closed player-body bend so the benchmark can run without
+                    // bypassing lethal water contact. Durable fixture water,
+                    // like the fixture enemies, holds full population/quality
+                    // through combat instead of making erosion look faster.
+                    auto& player=app.game.player;auto& body=player.segments;body.clear();
+                    for(int y=800;y<=824;y+=8)body.push_back({800,float(y)});
+                    for(int x=792;x>=776;x-=8)body.push_back({float(x),824});
+                    for(int y=816;y>=776;y-=8)body.push_back({776,float(y)});
+                    for(int x=784;x<=824;x+=8)body.push_back({float(x),776});
+                    for(int y=784;y<=824;y+=8)body.push_back({824,float(y)});
+                    body.push_back({816,824});body.push_back({808,824});
+                    if(shield)while(body.size()<120){const auto p=body.back();body.push_back({p.x,p.y+snake::Tile});}
+                    player.previousSegments=body;player.length=int(body.size());
+                    for(auto& p:app.game.flood.particles)p.hp=1e12f;
+                }
                 std::vector<double> cpu,total,updates;cpu.reserve(std::size_t(frames));total.reserve(std::size_t(frames));updates.reserve(std::size_t(frames/4+1));
                 if(lottery)app.game.chestRewards.push_back({1,snake::ChestRewardKind::Upgrade,catalog.find("venom_shot"),2,0,0,"Venom Shot Lv 2","A stronger venom shot."});
                 double firstCpu=0,firstTotal=0,warmupCpuWorst=0,warmupTotalWorst=0;
@@ -243,6 +260,7 @@ int main(int argc,char** argv){
                     <<",\"permanent_upgrades\":"<<(permanent?"true":"false")
                     <<",\"gridlock\":"<<(gridlock?"true":"false")
                     <<",\"flood\":"<<(flood?"true":"false")<<",\"water_particles\":"<<app.game.flood.particles.size()
+                    <<",\"water_durable_fixture\":"<<(flood&&moving?"true":"false")
                     <<",\"shield\":"<<(shield?"true":"false")
                     <<",\"grey_barriers\":"<<app.game.greySnakes.barrierCount<<",\"grey_trails\":"<<app.game.greySnakes.trails.size()
                     <<",\"enemies\":"<<app.game.enemies.size()<<",\"projectiles\":"<<app.game.projectiles.size()<<",\"zones\":"<<app.game.zones.size()

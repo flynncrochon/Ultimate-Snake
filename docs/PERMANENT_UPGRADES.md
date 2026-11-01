@@ -4,7 +4,10 @@ Shedskin is the shared permanent upgrade system alongside the full 30-minute
 run balance. Its bonuses are purchased between runs and inherited by every
 character; the one-minute wave schedule spans all thirty minutes.
 
-Open **UPGRADES [U]** from character selection. Buy a rank with Enter or click
+From character selection, press Down to select **UPGRADES [U]** below the
+snakes, then Enter to open it. The dark box gains the same white selection
+outline as the snake cards; Up returns to the previously selected snake.
+Clicking the box or pressing U also opens it. Buy a rank with Enter or click
 its row; use Up/Down to select and Escape/Back to return. If U is already bound
 to a control, the button remains available without taking that binding.
 

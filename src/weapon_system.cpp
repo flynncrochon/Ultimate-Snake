@@ -58,7 +58,8 @@ void Game::fire(OwnedUpgrade& own,const Stats& s){
     if(events.size()<100)events.push_back({Event::Shot});
     if(d.pattern==Pattern::Nest){const auto before=nestEggs.size();launchNest(d,own,s);if(before==nestEggs.size())own.cooldown=.05f;return;}
     if(d.pattern==Pattern::Nova){
-        for(auto& enemy:enemies)if(enemy.alive && !enemy.grabbed && dist(player.position,enemy.position)<=w.area*w.area){const bool crit=random(0,1)<s.crit;damageEnemy(enemy,w.damage*float(w.amount)*(crit?2:1),crit);}
+        if(flood.contact(player.position,player.position,w.area)<=1){flood.repel(player.position,w.area,{},65);const bool crit=random(0,1)<s.crit;damageDealt+=flood.damage(player.position,w.area,w.damage*float(w.amount)*(crit?2:1));}
+        for(auto& enemy:enemies)if(enemy.alive && !enemy.grabbed && enemy.kind!=EnemyKind::Flood && dist(player.position,enemy.position)<=w.area*w.area){const bool crit=random(0,1)<s.crit;damageEnemy(enemy,w.damage*float(w.amount)*(crit?2:1),crit);}
         const int aftershocks=std::max(0,int(std::floor((s.duration-1)/.25f+.0001f)));
         for(int wave=0;wave<=aftershocks;++wave)for(int i=0;i<w.amount && zones.size()<75;++i){
             Zone zone;zone.position=player.position;zone.radius=w.area;zone.life=zone.maxLife=.45f;zone.pattern=Pattern::Nova;
@@ -79,7 +80,7 @@ void Game::fire(OwnedUpgrade& own,const Stats& s){
     }
     if(d.pattern==Pattern::Lash){
         for(int i=0;i<w.amount && std::size_t(i)<count && grapples.size()<16;++i){auto* target=targets[count-1-std::size_t(i)];
-            if(target->kind==EnemyKind::Flood){flood.repel(target->position,std::max(20.0f,w.area*s.area),minus(target->position,player.position),100);visual(Pattern::Lash,target->position,w.area,.35f,false);continue;}
+            if(target->kind==EnemyKind::Flood){const float radius=std::max(20.0f,w.area*s.area);flood.repel(target->position,radius,minus(target->position,player.position),100);const bool crit=random(0,1)<s.crit;damageDealt+=flood.damage(target->position,radius,std::round(w.unroundedDamage*(crit?2:1)));visual(Pattern::Lash,target->position,w.area,.35f,false);continue;}
             Grapple grapple;grapple.target=target->id;grapple.position=player.position;grapple.direction=normal(minus(target->position,player.position));grapple.maxDistance=std::sqrt(dist(target->position,player.position));grapple.damage=w.unroundedDamage;grapple.radius=w.area*s.area;grapples.push_back(grapple);}return;
     }
     if(d.pattern==Pattern::Mortar || d.pattern==Pattern::Pit){

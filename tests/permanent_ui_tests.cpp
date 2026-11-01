@@ -55,6 +55,45 @@ int main(){
         require(IsWindowReady() && IsWindowHidden(),"Hidden native context unavailable");
         target=LoadRenderTexture(CanvasWidth,CanvasHeight);require(target.id!=0,"Framebuffer unavailable");
         const auto catalog=Catalog::load(SNAKE_TEST_DATA_DIR);
+        test("Down selects the outlined upgrade card and Enter opens it without starting or buying",[&]{
+            Presentation app(catalog);
+            key(app,KEY_RIGHT);key(app,KEY_RIGHT);
+            require(app.selectedCharacter==2,"Snake selection fixture failed");
+            const auto snakes=frame(app,target,"menu-snakes.png");
+            key(app,KEY_DOWN);
+            const auto upgrades=frame(app,target,"menu-upgrades-selected.png");
+            require(app.screen==Screen::Menu && !app.permanentUpgradesOpen(),"Down activated rather than selected upgrades");
+            require(snakes[106*CanvasWidth+406].r==255 && upgrades[106*CanvasWidth+406].r==68,"Down did not move the outline away from the snake");
+            require(snakes[372*CanvasWidth+296].r==68 && upgrades[372*CanvasWidth+296].r==255 && upgrades[373*CanvasWidth+297].r==255,"Upgrade selection did not gain the snake card's white border");
+            require(upgrades[378*CanvasWidth+302].r==snakes[109*CanvasWidth+409].r && upgrades[378*CanvasWidth+302].r==20,"Upgrade selection did not retain the dark snake-card background");
+            key(app,KEY_RIGHT);key(app,KEY_ENTER);frame(app,target);
+            require(app.permanentUpgradesOpen() && app.screen==Screen::Menu && app.selectedCharacter==2,"Enter started a run or lost the remembered snake");
+            require(app.currentProfile().gold==0 && app.currentProfile().upgrades.totalRanks()==0,"Opening upgrades also purchased a rank");
+            key(app,KEY_ESCAPE);frame(app,target);
+            key(app,KEY_ENTER);frame(app,target);
+            require(app.permanentUpgradesOpen(),"Returning from upgrades lost the menu selection");
+            key(app,KEY_ESCAPE);key(app,KEY_UP);frame(app,target);
+            key(app,KEY_ENTER);
+            require(app.screen==Screen::Countdown && !app.permanentUpgradesOpen() && app.selectedCharacter==2,"Up then Enter did not start the remembered snake");
+        });
+        test("rebound vertical controls and mouse clicks reach upgrades without stealing snake selection",[&]{
+            auto settings=defaultSettings();settings.controls.keys[std::size_t(Action::Down)]=KEY_U;
+            Presentation rebound(catalog,settings);
+            key(rebound,KEY_U);frame(rebound,target);
+            require(!rebound.permanentUpgradesOpen(),"U shortcut took the rebound Down control");
+            key(rebound,KEY_ENTER);frame(rebound,target);
+            require(rebound.permanentUpgradesOpen(),"Rebound Down then Enter missed upgrades");
+            key(rebound,KEY_ESCAPE);key(rebound,KEY_W);key(rebound,KEY_SPACE);
+            require(rebound.screen==Screen::Countdown,"Rebound Up did not return to snake selection");
+            Presentation mouse(catalog);
+            mouse.update(FixedStep,{400,387},true);frame(mouse,target);
+            require(mouse.permanentUpgradesOpen() && mouse.screen==Screen::Menu,"Clicking the upgrade card did not open it");
+            mouse.closePermanentUpgrades();
+            mouse.update(FixedStep,{300,120},true);frame(mouse,target);
+            require(mouse.selectedCharacter==1 && mouse.screen==Screen::Menu,"Clicking a snake from upgrades started it before selecting it");
+            mouse.update(FixedStep,{300,120},true);frame(mouse,target);
+            require(mouse.screen==Screen::Countdown,"Clicking the selected snake no longer starts a run");
+        });
         test("keyboard and mouse purchases affect the next run and repeated draws cannot buy",[&]{
             Files files;Profile profile;profile.gold=10000;files.put(profile);
             {

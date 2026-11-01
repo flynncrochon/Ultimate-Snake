@@ -85,6 +85,28 @@ int main(){
         SetTextureFilter(target.texture,TEXTURE_FILTER_POINT);
         const auto catalog=Catalog::load(SNAKE_TEST_DATA_DIR);
 
+        test("health HUD is continuous and proportional through damage, healing and bonus health",[&]{
+            Presentation app(catalog);prepare(app,catalog,false);
+            struct HealthCase{float hp,maxHp;int fill;const char* capture;};
+            const HealthCase cases[]{
+                {100,100,82,"health-full.png"},{50,100,41,"health-half.png"},
+                {10,100,8,"health-low.png"},{66.55f,133.1f,41,"health-bonus-half.png"},
+                {.1f,100,1,"health-critical.png"},{0,100,0,"health-empty.png"},
+                {100,100,82,"health-restored.png"}};
+            const auto same=[](Color a,Color b){return a.r==b.r && a.g==b.g && a.b==b.b && a.a==b.a;};
+            std::vector<Color> reference;
+            for(const auto& state:cases){
+                app.game.player.hp=state.hp;app.game.player.maxHp=state.maxHp;
+                const auto pixels=capture(app,target,state.capture);
+                for(int y=25;y<32;++y)for(int x=7;x<89;++x)
+                    require(same(pixels[std::size_t(y*CanvasWidth+x)],x<7+state.fill?Color{214,55,65,255}:Color{40,20,24,255}),"Health fill has gaps or does not reflect current/max HP");
+                if(reference.empty())reference=pixels;
+                else for(int y=0;y<CanvasHeight;++y)for(int x=0;x<CanvasWidth;++x)
+                    if(x<6 || x>=90 || y<23 || y>=33)
+                        require(same(pixels[std::size_t(y*CanvasWidth+x)],reference[std::size_t(y*CanvasWidth+x)]),"Health changes moved or damaged another HUD/world pixel");
+            }
+        });
+
         test("stationary upgrade hover preserves arrow selection and keyboard confirmation",[&]{
             for(const int direction:{KEY_LEFT,KEY_RIGHT}){
                 Presentation app(catalog);prepare(app,catalog,false);app.game.grantXp(app.game.player.nextXp);

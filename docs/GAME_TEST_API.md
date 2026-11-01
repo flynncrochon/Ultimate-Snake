@@ -19,11 +19,13 @@ Flood fixtures use `game.spawn_flood(x, y, direction=(-1, 0), count=640,
 warning=1.5)` (or JSON command `spawn_flood`). Waves append to a shared pool of
 at most 1,536 samples. `configure(floods=True, flood_clock=59.99,
 flood_next_spawn=60)` controls its minute director independently. Isolated fixtures
-disable scheduled floods; explicit flood contact still kills an immune head.
+disable scheduled floods. Head contact deals 10 HP before armor and respects
+contact immunity and shields; use `configure(invulnerable=False)` for damage tests.
 Snapshots include `flood` schedule/phase/repulsion data, active `waves` and
 `capacity` and, when full, `water_particles` with position, previous position,
-velocity, foam, per-sample `age`/`warning` and its source `wave`. A new wave
-keeps its own warning; older water remains lethal and drains independently
+velocity, foam, per-sample `age`/`warning`, remaining `hp` (initially 20), and its
+source `wave`. A new wave
+keeps its own warning; older water remains damaging and drains independently
 after its 90-second lifetime plus a one-second fade. The
 legacy `water_impacts` array/count remain empty/zero for capture-tool
 compatibility; the selected original material uses its collision-foam field.

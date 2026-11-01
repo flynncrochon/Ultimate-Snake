@@ -13,8 +13,6 @@
     #loading[hidden] { display: none; }
     #status { max-width: 36em; padding: 16px; }
     #tools { position: fixed; bottom: 8px; left: 8px; display: flex; gap: 8px; align-items: center; }
-    button { background: #151515; color: #eee; border: 1px solid #666; padding: 6px 10px; font: inherit; cursor: pointer; }
-    button:focus-visible { outline: 2px solid #ffc85f; }
     #storage { max-width: 26em; color: #ffc85f; font-size: 12px; }
     body:fullscreen { overflow: auto; }
   </style>
@@ -23,7 +21,6 @@
   <div id="loading" role="status"><div id="status">Loading Snake Survivors…</div></div>
   <canvas id="canvas" width="800" height="500" tabindex="0" aria-label="Snake Survivors game. WASD or arrows to steer, Enter to start, Escape to pause."></canvas>
   <div id="tools">
-    <button id="fullscreen" type="button">Fullscreen</button>
     <span id="storage" role="status"></span>
   </div>
   <script>
@@ -89,15 +86,7 @@
       if (document.activeElement === canvas &&
           ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab', 'F2', 'F3', 'F10'].includes(event.code)) event.preventDefault();
     }, {capture: true});
-    document.getElementById('fullscreen').addEventListener('click', async function() {
-      try {
-        if (document.fullscreenElement) await document.exitFullscreen();
-        else await document.body.requestFullscreen();
-      } catch (error) { storage.textContent = 'Fullscreen is unavailable in this browser or embed.'; }
-      canvas.focus();
-    });
     document.addEventListener('fullscreenchange', function() {
-      document.getElementById('fullscreen').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
       window.dispatchEvent(new Event('resize'));
     });
     document.addEventListener('visibilitychange', function() {

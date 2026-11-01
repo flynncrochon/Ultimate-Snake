@@ -94,6 +94,7 @@ private:
     std::string permanentMessage;
     Vec mouse;
     bool clicked = false, recorded = false;
+    bool menuUpgradesSelected = false;
     int focus = 0, hoveredOffer = 0;
     float visualTime = 0;
     float deathSeconds = 0;

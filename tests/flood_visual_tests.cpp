@@ -96,6 +96,38 @@ int main(){
             int stillOpaque=0;
             for(std::size_t i=0;i<joined.size();i+=4)stillOpaque+=isWater(joined,i) && std::memcmp(joined.data()+i,draining.data()+i,4)==0;
             require(stillOpaque>5000,"An older wave's fade drained the younger joined surface");
+            app.game.reset(0,1942);app.game.enemies.clear();app.game.pickups.clear();app.game.owned.clear();
+            app.game.spawnClock=-10000;app.game.bossClock=100;app.game.player.moveClock=-10000;
+            app.game.greySnakes.enabled=false;app.game.flood.enabled=false;
+            require(app.game.spawnFlood({864,800},{-1,0},64,0),"Damage capture fixture did not spawn");
+            const auto alive=capture(app,target,output/"damage-before.png");
+            snake::Projectile shot;shot.position={800,800};shot.velocity={6000,0};shot.radius=6;shot.damage=1000;app.game.projectiles.push_back(shot);
+            app.game.update(snake::FixedStep,{});
+            const auto damaged=capture(app,target,output/"damage-loot.png");
+            require(app.game.flood.active() && app.game.flood.particles.size()<64 && app.game.kills>0 && app.game.experienceDropped==std::uint64_t(app.game.kills),"Shooting water did not clear a local patch and drop loot");
+            int removed=0;for(std::size_t i=0;i<alive.size();i+=4)removed+=isWater(alive,i) && !isWater(damaged,i);
+            require(removed>50,"Destroyed water left its old surface visible");
+            app.game.flood.damage({864,800},200,1000000);app.game.update(snake::FixedStep,{});
+            const auto cleared=capture(app,target,output/"damage-cleared.png");
+            for(std::size_t i=0;i<cleared.size();i+=4)require(!isWater(cleared,i),"A cleared water surface left stale blue pixels");
+            require(app.game.kills==64 && app.game.experienceDropped==64 && app.game.snakeDeaths.empty(),"Water clearing lost rewards or produced a snake corpse");
+            auto arrival=[&](double when,const char* name,std::size_t samples){
+                app.game.reset(0,1942);app.game.enemies.clear();app.game.pickups.clear();app.game.owned.clear();
+                app.game.spawnClock=-10000;app.game.bossClock=100;app.game.player.moveClock=-10000;
+                app.game.greySnakes.enabled=false;app.game.flood.enabled=true;
+                app.game.flood.clock=when-.001;app.game.flood.nextSpawn=when;
+                app.game.update(snake::FixedStep,{});
+                require(app.game.flood.particles.size()==samples,"Natural arrival captured the wrong water volume");
+                // Approach during the warning so the whole incoming sheet is
+                // visible, rather than comparing thin viewport-edge slivers.
+                app.game.player.moveClock=0;
+                for(int frame=0;frame<60;++frame)app.game.update(snake::FixedStep,{{1,0}});
+                const auto pixels=capture(app,target,output/name);int bluePixels=0;
+                for(std::size_t i=0;i<pixels.size();i+=4)bluePixels+=isWater(pixels,i);
+                return bluePixels;
+            };
+            const int early=arrival(60,"arrival-early.png",128),late=arrival(1020,"arrival-late.png",640);
+            require(early>100 && late>early*3,"Later natural arrivals did not produce a visibly larger water surface");
             app.startRun(1942);
             require(app.game.flood.enabled && !app.game.flood.active() && app.game.flood.clock==0 && app.game.flood.nextSpawn==snake::FloodFirstSeconds,
                     "Starting a normal run after the preview disabled natural floods");

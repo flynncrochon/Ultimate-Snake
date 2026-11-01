@@ -146,11 +146,13 @@ struct Enemy {
 
 constexpr std::size_t FloodCapacity = 1536;
 constexpr float FloodRadius = 3.0f, FloodFirstSeconds = 60, FloodIntervalSeconds = 60, FloodLifetime = 90;
+constexpr float FloodHealth = 20, FloodContactDamage = 10;
 struct WaterParticle {
     Vec position, previous, velocity;
     float foam = 0;
     float age = 0, warning = 1.5f;
     std::uint32_t wave = 0;
+    float hp = FloodHealth;
 };
 // Arriving waves join one shared pressure, cohesion and viscosity simulation.
 // Each sample keeps its own warning and lifetime. The single
@@ -170,8 +172,8 @@ struct FloodSystem {
     std::uint32_t enemyId = 0, serial = 0, repulsions = 0;
     bool enabled = true;
     bool active() const { return !particles.empty(); }
-    bool dangerous() const { return hazardous; }
-    bool dangerous(const WaterParticle& p) const { return p.age >= p.warning && p.age < lifetime; }
+    bool dangerous() const { return hazards > 0; }
+    bool dangerous(const WaterParticle& p) const { return p.hp > 0 && p.age >= p.warning && p.age < lifetime; }
     std::size_t waveCount() const;
     void reset();
     bool start(Vec position,Vec heading,int count = 640,float warningSeconds = 1.5f);
@@ -179,11 +181,14 @@ struct FloodSystem {
     // Swept circle contact returns the first impact, including fast shots.
     float contact(Vec from,Vec to,float radius) const;
     void repel(Vec position,float radius,Vec direction,float strength);
-    bool update(float dt,const Player& player,const std::vector<Enemy>& enemies,const GreySnakeSystem& grey,Vec headStart);
+    // Damage only the contacted live surface. Removal waits until the end of
+    // combat so the index and other weapon queries stay stable for this tick.
+    double damage(Vec position,float radius,double amount);
+    bool update(float dt,const Player& player,const GreySnakeSystem& grey,Vec headStart);
 private:
     struct Storage;
     std::unique_ptr<Storage> storage;
-    bool hazardous = false;
+    std::size_t hazards = 0;
     void rebuildIndex();
 };
 struct Projectile {
@@ -358,11 +363,12 @@ private:
     void spawnEnemy(EnemyKind kind, Vec position);
     void updateDirector(float dt);
     void damageEnemy(Enemy& enemy, double damage, bool critical = false);
+    void dropExperience(Vec position,int value);
     void fire(OwnedUpgrade& upgrade, const Stats& stats);
     void collectChest();
     void moveEnemies(float dt);
     void directFlood(float dt);
-    void updateFlood(float dt,Vec headStart);
+    void updateFlood(float dt,Vec headStart,int armor);
     void placeEnemy(Enemy& enemy, Vec position, bool collapseBody = false);
     void updateGreySnakes(float dt);
     void spawnGreySnake();

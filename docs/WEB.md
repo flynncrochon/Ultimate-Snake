@@ -94,8 +94,8 @@ deployment allowed to finish.
   batches without allocating render textures on resize. Canvas dimensions and
   GLFW's window metadata stay synchronized through resize, DPI, and fullscreen
   changes. The page applies no fractional CSS scaling. Viewports below 800×500
-  scroll/crop instead of shrinking pixels. The Fullscreen button uses the
-  browser fullscreen API.
+  scroll/crop instead of shrinking pixels. Use the browser's fullscreen controls
+  to play fullscreen.
 - Click the game to focus keyboard input and unlock audio under browser autoplay
   rules. Enter starts a run; Escape pauses. Escape in the character menu keeps the
   web game open. Browser-reserved shortcuts may require rebinding in Settings.
